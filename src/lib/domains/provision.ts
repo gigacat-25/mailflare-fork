@@ -64,27 +64,21 @@ export async function provisionDomainOnCloudflare(
 	}
 
 	if (enableSending) {
-		if (isZoneApex(normalized, zone.name)) {
-			// At zone apex, Cloudflare Workers sends emails directly via the
-			// send_email binding using the zone's active Email Routing.
-			sendingEnabled = routingEnabled;
-		} else {
-			try {
-				const subs = await listSendingSubdomains(env, zone.id);
-				const existingSub = subs.find((s) => s.name === normalized);
-				if (existingSub) {
-					sendingSubdomainTag = existingSub.tag;
-					sendingEnabled = existingSub.enabled;
-				} else {
-					const created = await createSendingSubdomain(env, zone.id, normalized);
-					sendingSubdomainTag = created.tag;
-					sendingEnabled = created.enabled;
-					changes.createdSendingSubdomainTag = created.tag;
-				}
-			} catch (err) {
-				console.warn("Could not configure email sending subdomain (requires Workers Paid plan):", err);
-				sendingEnabled = false;
+		try {
+			const subs = await listSendingSubdomains(env, zone.id);
+			const existingSub = subs.find((s) => s.name === normalized);
+			if (existingSub) {
+				sendingSubdomainTag = existingSub.tag;
+				sendingEnabled = existingSub.enabled;
+			} else {
+				const created = await createSendingSubdomain(env, zone.id, normalized);
+				sendingSubdomainTag = created.tag;
+				sendingEnabled = created.enabled;
+				changes.createdSendingSubdomainTag = created.tag;
 			}
+		} catch (err) {
+			console.warn("Could not configure email sending subdomain (requires Workers Paid plan):", err);
+			sendingEnabled = isZoneApex(normalized, zone.name) ? routingEnabled : false;
 		}
 	}
 
