@@ -42,7 +42,7 @@ export function ComposeForm({
 	const previousSignature = useRef("");
 
 	useEffect(() => {
-		if (!selectedMailbox && mailboxes.length === 1) setSelectedMailbox(mailboxes[0]);
+		if (!selectedMailbox && mailboxes.length > 0) setSelectedMailbox(mailboxes[0]);
 	}, [mailboxes, selectedMailbox, setSelectedMailbox]);
 
 	const senderAddresses = useMemo(() => {
@@ -168,7 +168,7 @@ export function ComposeForm({
 				to,
 				subject,
 				text,
-				mailboxId: selectedMailbox?.id,
+				mailboxId: selectedMailbox?.id ?? senderOptions[0]?.mailbox.id,
 			}),
 		});
 		const data = (await res.json()) as { messageId?: string; error?: string };

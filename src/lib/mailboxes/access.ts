@@ -39,7 +39,7 @@ export async function getMailboxAccessLevel(
 }
 
 export async function listAccessibleMailboxes(db: AppDatabase, user: Pick<SessionUser, "id" | "email" | "role">) {
-	const ownedRows = await db
+	let ownedRows = await db
 		.select({
 			id: mailboxes.id,
 			userId: mailboxes.userId,
@@ -60,6 +60,55 @@ export async function listAccessibleMailboxes(db: AppDatabase, user: Pick<Sessio
 		.from(mailboxes)
 		.innerJoin(domains, eq(mailboxes.domainId, domains.id))
 		.where(and(eq(mailboxes.userId, user.id), eq(mailboxes.disabled, false)));
+
+	if (ownedRows.length === 0) {
+		const unlinked = await db
+			.select()
+			.from(mailboxes)
+			.where(and(eq(mailboxes.userId, user.id), eq(mailboxes.disabled, false)));
+
+		if (unlinked.length > 0) {
+			const userDomains = await db
+				.select()
+				.from(domains)
+				.where(eq(domains.userId, user.id));
+
+			if (userDomains.length > 0) {
+				for (const mb of unlinked) {
+					const matchingDomain = userDomains.find((d) => d.id === mb.domainId) ?? userDomains[0];
+					if (matchingDomain && mb.domainId !== matchingDomain.id) {
+						await db
+							.update(mailboxes)
+							.set({ domainId: matchingDomain.id })
+							.where(eq(mailboxes.id, mb.id))
+							.catch(() => {});
+					}
+				}
+
+				ownedRows = await db
+					.select({
+						id: mailboxes.id,
+						userId: mailboxes.userId,
+						domainId: mailboxes.domainId,
+						localPart: mailboxes.localPart,
+						displayName: mailboxes.displayName,
+						signature: mailboxes.signature,
+						autoReplyEnabled: mailboxes.autoReplyEnabled,
+						autoReplySubject: mailboxes.autoReplySubject,
+						autoReplyBody: mailboxes.autoReplyBody,
+						useAllDomains: mailboxes.useAllDomains,
+						avatarKey: mailboxes.avatarKey,
+						type: mailboxes.type,
+						disabled: mailboxes.disabled,
+						createdAt: mailboxes.createdAt,
+						hostname: domains.hostname,
+					})
+					.from(mailboxes)
+					.innerJoin(domains, eq(mailboxes.domainId, domains.id))
+					.where(and(eq(mailboxes.userId, user.id), eq(mailboxes.disabled, false)));
+			}
+		}
+	}
 	const owned = ownedRows
 		.map((row) => {
 			const { avatarKey, ...mailbox } = row;
