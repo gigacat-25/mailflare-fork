@@ -71,3 +71,4 @@ Add your Cloudflare credentials to `.dev.vars`, then open [http://localhost:3000
 ## License
 
 See [LICENSE](LICENSE).
+.
