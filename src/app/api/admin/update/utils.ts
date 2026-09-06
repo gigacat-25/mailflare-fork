@@ -168,15 +168,13 @@ async function getTargetVersion(): Promise<string> {
 export async function getUpdateStatus(
   env: CloudflareEnv,
 ): Promise<UpdateStatus> {
-  const config = getDispatchConfig(env);
   const currentVersion = packageMetadata.version;
-  const targetVersion = await getTargetVersion();
-
+  const repository = env.GITHUB_UPDATE_REPO?.trim() || "self-hosted";
   return {
-    available: isNewerVersion(targetVersion, currentVersion),
+    available: false,
     currentVersion,
-    repository: UPDATE_SOURCE_REPOSITORY,
-    targetVersion,
+    repository,
+    targetVersion: currentVersion,
   };
 }
 
