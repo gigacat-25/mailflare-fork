@@ -65,7 +65,9 @@ export async function provisionDomainOnCloudflare(
 
 	if (enableSending) {
 		if (isZoneApex(normalized, zone.name)) {
-			sendingEnabled = false;
+			// At zone apex, Cloudflare Workers sends emails directly via the
+			// send_email binding using the zone's active Email Routing.
+			sendingEnabled = routingEnabled;
 		} else {
 			try {
 				const subs = await listSendingSubdomains(env, zone.id);

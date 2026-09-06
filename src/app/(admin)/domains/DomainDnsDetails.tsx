@@ -57,13 +57,22 @@ export default function DomainDnsDetails({ domain, dns }: DomainDnsDetailsProps)
 							</li>
 						))}
 						{dns.sending.length === 0 && (
-							<li className={`flex items-center gap-2 rounded-xl px-3 py-2 text-sm ${domain.sendingEnabled ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800"}`}>
+							<li className={`flex items-start gap-2 rounded-xl px-3 py-2 text-sm ${domain.sendingEnabled ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800"}`}>
 								{domain.sendingEnabled ? (
-									<Check className="h-4 w-4 shrink-0 text-green-600" />
+									<Check className="mt-0.5 h-4 w-4 shrink-0 text-green-600" />
 								) : (
-									<AlertTriangle className="h-4 w-4 shrink-0 text-red-600" />
+									<AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-600" />
 								)}
-								{domain.sendingEnabled ? "Email sending is configured" : "No sending DNS records found"}
+								<div className="flex flex-col">
+									<span>
+										{domain.sendingEnabled ? "Email sending is configured" : "No sending DNS records found"}
+									</span>
+									{domain.sendingEnabled && (
+										<span className="mt-1 text-xs text-green-700">
+											Outbound email sends via Cloudflare Workers. For best deliverability, ensure you have an SPF record and a DMARC TXT record (_dmarc) in Cloudflare DNS.
+										</span>
+									)}
+								</div>
 							</li>
 						)}
 					</ul>

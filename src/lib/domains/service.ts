@@ -17,6 +17,7 @@ import { provisionDomainOnCloudflare } from "@/lib/domains/provision";
 import { rollbackDomainProvisioning } from "@/lib/domains/rollback";
 import type { DomainProvisioningChanges } from "@/lib/domains/types";
 import { findSendingSubdomain } from "@/lib/domains/sending-status";
+import { isZoneApex } from "@/lib/domains/utils";
 
 export type DomainDnsView = {
 	routing: { records: CfDnsRecord[]; missing: CfDnsRecord[]; status?: string };
@@ -119,6 +120,26 @@ export async function getDomainDns(
 	if (sendingSubdomain?.tag) {
 		sending = await getSendingSubdomainDns(env, domain.zoneId, sendingSubdomain.tag);
 	}
+	const isApex = Boolean(
+		routingSettings.name
+			? isZoneApex(domain.hostname, routingSettings.name)
+			: !sendingSubdomain && domain.routingEnabled,
+	);
+	const apexSendingEnabled = isApex && (routingSettings.enabled === true || domain.routingEnabled);
+	const sendingEnabled = sendingSubdomain?.enabled ?? (isApex ? apexSendingEnabled : (domain.sendingEnabled ?? false));
+
+	if (domain.sendingEnabled !== sendingEnabled) {
+		try {
+			const db = getDb(env);
+			await db
+				.update(domains)
+				.set({ sendingEnabled })
+				.where(eq(domains.id, domain.id));
+		} catch {
+			// Ignore database sync errors in DNS read path
+		}
+	}
+
 	return {
 		routing: {
 			records: routingDns.records,
@@ -126,7 +147,7 @@ export async function getDomainDns(
 			status: routingSettings.status,
 		},
 		sending,
-		sendingEnabled: sendingSubdomain?.enabled ?? false,
+		sendingEnabled,
 	};
 }
 
