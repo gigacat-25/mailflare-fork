@@ -8,10 +8,11 @@
     "build:next": "npm run db:bundle && next build",
     "start": "next start",
     "lint": "eslint .",
-    "deploy": "npm run db:bundle && opennextjs-cloudflare build && npm run deploy:worker",
-    "deploy:worker": "OPEN_NEXT_DEPLOY=true wrangler deploy",
+    "postinstall": "node scripts/patch-opennext.mjs",
+    "deploy": "npm run db:bundle && node scripts/patch-opennext.mjs && opennextjs-cloudflare build && npm run deploy:worker",
+    "deploy:worker": "cross-env OPEN_NEXT_DEPLOY=true wrangler deploy",
     "deploy:local": "npm run deploy",
-    "upload": "npm run db:bundle && opennextjs-cloudflare build && OPEN_NEXT_DEPLOY=true wrangler versions upload",
+    "upload": "npm run db:bundle && node scripts/patch-opennext.mjs && opennextjs-cloudflare build && cross-env OPEN_NEXT_DEPLOY=true wrangler versions upload",
     "preview": "npm run db:bundle && opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "cf-typegen": "wrangler types --env-interface CloudflareEnv ./cloudflare-env.d.ts",
     "db:bundle": "node scripts/generate-migration-bundle.mjs",
@@ -20,9 +21,9 @@
     "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
     "migrate": "wrangler d1 migrations apply DB",
     "db:seed": "curl -X POST http://localhost:3000/api/seed",
-    "build:node": "npm run db:bundle && MAILFLARE_RUNTIME=node next build && node scripts/build-server.mjs",
-    "start:node": "MAILFLARE_RUNTIME=node NODE_ENV=production node dist/server.mjs",
-    "dev:node": "npm run db:bundle && MAILFLARE_RUNTIME=node node --import tsx server/index.ts"
+    "build:node": "npm run db:bundle && cross-env MAILFLARE_RUNTIME=node next build && node scripts/build-server.mjs",
+    "start:node": "cross-env MAILFLARE_RUNTIME=node NODE_ENV=production node dist/server.mjs",
+    "dev:node": "npm run db:bundle && cross-env MAILFLARE_RUNTIME=node node --import tsx server/index.ts"
   },
   "cloudflare": {
     "bindings": {
@@ -98,6 +99,7 @@
     "@types/react": "^19.1.7",
     "@types/react-dom": "^19.1.7",
     "@types/smtp-server": "^3.5.13",
+    "cross-env": "^10.1.0",
     "drizzle-kit": "^0.31.10",
     "esbuild": "^0.28.2",
     "eslint": "^9",
