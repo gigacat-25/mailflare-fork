@@ -16,14 +16,17 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { CardGridSkeleton } from "@/components/page-skeletons";
 import { authFetch } from "@/lib/auth/client";
+import { API_KEY_SCOPES, type ApiKeyScope } from "@/lib/api/scopes";
 import type { ApiKey } from "./types";
 import { parseApiKeyScopes } from "./utils";
 
 export default function ApiKeysPage() {
 	const qc = useQueryClient();
 	const [name, setName] = useState("");
+	const [scopes, setScopes] = useState<ApiKeyScope[]>(["send", "read"]);
 	const [newKey, setNewKey] = useState<string | null>(null);
 	const [createOpen, setCreateOpen] = useState(false);
 
@@ -40,7 +43,7 @@ export default function ApiKeysPage() {
 			const res = await authFetch("/api/api-keys", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ name, scopes: ["send", "read"] }),
+				body: JSON.stringify({ name, scopes }),
 			});
 			const json = (await res.json()) as { key?: string };
 			if (!res.ok) throw new Error("Failed");
@@ -49,6 +52,7 @@ export default function ApiKeysPage() {
 		},
 		onSuccess: () => {
 			setCreateOpen(false);
+			setScopes(["send", "read"]);
 			qc.invalidateQueries({ queryKey: ["api-keys"] });
 		},
 	});
@@ -67,20 +71,43 @@ export default function ApiKeysPage() {
 					<DialogContent>
 						<DialogHeader>
 							<DialogTitle>Create API key</DialogTitle>
-							<DialogDescription>Create a key with send and read permissions.</DialogDescription>
-						</DialogHeader>
-						<div className="space-y-4">
-							<div className="space-y-2">
-								<Label>Name</Label>
-								<Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Production app" />
-							</div>
-							{create.isError && (
-								<p className="text-sm text-red-600">{(create.error as Error).message}</p>
-							)}
-							<Button onClick={() => create.mutate()} disabled={!name || create.isPending}>
-								{create.isPending ? "Creating..." : "Create key"}
-							</Button>
+						<DialogDescription>Choose what this key is allowed to do.</DialogDescription>
+					</DialogHeader>
+					<div className="space-y-4">
+						<div className="space-y-2">
+							<Label>Name</Label>
+							<Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Production app" />
 						</div>
+						<div className="space-y-2">
+							<Label>Scopes</Label>
+							<div className="flex flex-wrap gap-x-4 gap-y-2">
+								{API_KEY_SCOPES.map((scope) => (
+									<label key={scope} className="flex items-center gap-2 text-sm">
+										<Checkbox
+											checked={scopes.includes(scope)}
+											onChange={(event) =>
+												setScopes((current) =>
+													event.target.checked
+														? [...current, scope]
+														: current.filter((item) => item !== scope),
+												)
+											}
+										/>
+										{scope}
+									</label>
+								))}
+							</div>
+						</div>
+						{create.isError && (
+							<p className="text-sm text-red-600">{(create.error as Error).message}</p>
+						)}
+						<Button
+							onClick={() => create.mutate()}
+							disabled={!name || scopes.length === 0 || create.isPending}
+						>
+							{create.isPending ? "Creating..." : "Create key"}
+						</Button>
+					</div>
 					</DialogContent>
 				</Dialog>
 			</div>

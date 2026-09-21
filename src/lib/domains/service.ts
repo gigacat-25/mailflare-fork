@@ -13,7 +13,8 @@ import {
 	type CfDnsRecord,
 } from "@/lib/cloudflare-api";
 import { deleteEmailRoutingRulesForDomain } from "@/lib/domains/cloudflare-cleanup";
-import { provisionDomainOnCloudflare } from "@/lib/domains/provision";
+import { isManualZone, provisionDomainOnCloudflare } from "@/lib/domains/provision";
+import { getManualDomainDns } from "@/lib/domains/manual-dns";
 import { rollbackDomainProvisioning } from "@/lib/domains/rollback";
 import type { DomainProvisioningChanges } from "@/lib/domains/types";
 import { findSendingSubdomain } from "@/lib/domains/sending-status";
@@ -23,6 +24,10 @@ export type DomainDnsView = {
 	routing: { records: CfDnsRecord[]; missing: CfDnsRecord[]; status?: string };
 	sending: CfDnsRecord[];
 	sendingEnabled: boolean;
+	/** DKIM selector Cloudflare signs with, when a sending subdomain exists. */
+	dkimSelector?: string;
+	/** The matching sending subdomain, when the zone has the domain added for sending. */
+	sendingSubdomain?: { name: string; tag: string };
 };
 
 export async function listUserDomains(env: CloudflareEnv, userId: string) {
@@ -34,7 +39,7 @@ export async function addDomainForUser(
 	env: CloudflareEnv,
 	userId: string,
 	hostname: string,
-	options?: { enableRouting?: boolean; enableSending?: boolean },
+	options?: { enableRouting?: boolean; enableSending?: boolean; replaceMxRecords?: boolean },
 ): Promise<{
 	domain: typeof domains.$inferSelect;
 	dns: DomainDnsView;
@@ -60,6 +65,7 @@ export async function addDomainForUser(
 			status: provisioned.routingEnabled || provisioned.sendingEnabled ? ("active" as const) : ("pending" as const),
 			routingStatus: provisioned.routingStatus ?? null,
 			sendingSubdomainTag: provisioned.sendingSubdomainTag,
+			sendingRequested: provisioned.sendingRequested,
 			sendingEnabled: provisioned.sendingEnabled,
 			routingEnabled: provisioned.routingEnabled,
 		};
@@ -101,8 +107,19 @@ export async function addDomainForUser(
 	}
 
 	// Read the DNS view outside the rollback scope: the domain is fully set up by
-	// now, so a failed status read must not tear it back down.
-	const dns = await getDomainDns(env, domain);
+	// now, so a failed status read must not tear it back down or make registration
+	// delete the account that now owns the completed Cloudflare configuration.
+	let dns: DomainDnsView;
+	try {
+		dns = await getDomainDns(env, domain);
+	} catch (error) {
+		console.warn("addDomainForUser: failed to read DNS status after provisioning", error);
+		dns = {
+			routing: { records: [], missing: [], status: provisioned.routingStatus },
+			sending: [],
+			sendingEnabled: provisioned.sendingEnabled,
+		};
+	}
 	return { domain, dns, changes: provisioned.changes };
 }
 
@@ -110,15 +127,28 @@ export async function getDomainDns(
 	env: CloudflareEnv,
 	domain: typeof domains.$inferSelect,
 ): Promise<DomainDnsView> {
+	if (isManualZone(domain.zoneId)) return getManualDomainDns(env, domain.hostname);
+	// Read the zone's actual sending state rather than trusting `sendingRequested`,
+	// which goes stale when sending is enabled outside Mailflare (or when the row
+	// was written before the subdomain existed). A missing Email Sending permission
+	// must not take down the routing/DNS view, so a failed list degrades to none.
 	const [routingDns, routingSettings, sendingSubdomains] = await Promise.all([
 		getEmailRoutingDns(env, domain.zoneId),
 		getEmailRoutingSettings(env, domain.zoneId),
-		listSendingSubdomains(env, domain.zoneId),
+		listSendingSubdomains(env, domain.zoneId).catch((error) => {
+			console.warn("getDomainDns: failed to list sending subdomains", error);
+			return [];
+		}),
 	]);
 	const sendingSubdomain = findSendingSubdomain(domain.hostname, sendingSubdomains);
 	let sending: CfDnsRecord[] = [];
 	if (sendingSubdomain?.tag) {
-		sending = await getSendingSubdomainDns(env, domain.zoneId, sendingSubdomain.tag);
+		sending = await getSendingSubdomainDns(env, domain.zoneId, sendingSubdomain.tag).catch(
+			(error) => {
+				console.warn("getDomainDns: failed to read sending subdomain DNS", error);
+				return [];
+			},
+		);
 	}
 	const isApex = Boolean(
 		routingSettings.name
@@ -148,6 +178,10 @@ export async function getDomainDns(
 		},
 		sending,
 		sendingEnabled,
+		dkimSelector: sendingSubdomain?.dkim_selector,
+		sendingSubdomain: sendingSubdomain
+			? { name: sendingSubdomain.name, tag: sendingSubdomain.tag }
+			: undefined,
 	};
 }
 

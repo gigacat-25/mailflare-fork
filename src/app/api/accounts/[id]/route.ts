@@ -6,6 +6,7 @@ import { updateManagedAccountSchema } from "@/lib/validators";
 import { requireTeamAdmin } from "../utils";
 import type { AccountRouteParams } from "./types";
 import { selectAccountById, updateAccountCredentials } from "./utils";
+import { deleteUserSessions } from "@/lib/auth/session";
 
 export async function GET(request: Request, { params }: AccountRouteParams) {
 	const access = await requireTeamAdmin(request);
@@ -41,7 +42,9 @@ export async function PATCH(request: Request, { params }: AccountRouteParams) {
 	}
 	const parsed = updateManagedAccountSchema.safeParse(await request.json());
 	if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
-	await updateAccountCredentials(db, id, { name: parsed.data.name, password: null });
+	await updateAccountCredentials(db, id, { name: parsed.data.name, password: parsed.data.password ?? null });
+	// A password set by an admin is a reset: whoever held the old one is signed out.
+	if (parsed.data.password) await deleteUserSessions(access.env, id);
 	await db.update(users).set({
 		role: parsed.data.role,
 		disabled: parsed.data.disabled,

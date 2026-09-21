@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/cookies";
 import { getEnv } from "@/lib/cloudflare";
 import { hasPrimaryDomain, userHasMailboxes } from "@/lib/user";
+import { hasCloudflareCredentials, isNodeRuntime } from "@/lib/runtime";
 
 export async function GET(request: Request) {
 	const env = getEnv();
@@ -30,8 +31,13 @@ export async function GET(request: Request) {
 			canForwardEmail: true,
 			role: user.role,
 			canManageMailboxes: user.canManageMailboxes,
+			keyboardShortcutsEnabled: user.keyboardShortcutsEnabled,
+			spamProtectionEnabled: user.spamProtectionEnabled,
 			hasAvatar: !!user.avatarKey,
+			mfaEnabled: user.totpEnabled,
 		},
+		runtime: isNodeRuntime(env) ? "node" : "cloudflare",
+		managesDns: hasCloudflareCredentials(env),
 		hasMailboxes,
 		isSetup,
 	});

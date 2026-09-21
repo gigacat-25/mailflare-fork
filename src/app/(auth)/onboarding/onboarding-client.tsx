@@ -2,20 +2,26 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ArrowRight, MailPlus } from "lucide-react";
+import { AlertTriangle, ArrowRight, CheckCircle2, LoaderCircle, MailPlus } from "lucide-react";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { createDomain, createMailbox, getDomains } from "./utils";
+import { Switch } from "@/components/ui/switch";
+import { checkDomain, createDomain, createMailbox, getDomains } from "./utils";
+import type { DomainPreflight } from "./types";
 
 export function OnboardingClient() {
 	const router = useRouter();
 	const [step, setStep] = useState<1 | 2>(1);
 	const [hostname, setHostname] = useState("");
+	const [domainCheck, setDomainCheck] = useState<DomainPreflight | null>(null);
+	const [domainChecking, setDomainChecking] = useState(false);
+	const [enableSending, setEnableSending] = useState(false);
 	const [domainId, setDomainId] = useState("");
 	const [localPart, setLocalPart] = useState("me");
 	const [error, setError] = useState<string | null>(null);
+	const [mxConflict, setMxConflict] = useState(false);
 	const [loading, setLoading] = useState(false);
 
 	useEffect(() => {
@@ -30,18 +36,65 @@ export function OnboardingClient() {
 			.catch(() => undefined);
 	}, []);
 
-	async function addDomain() {
+	async function addDomain(replaceMxRecords = false) {
 		setLoading(true);
 		setError(null);
 
-		const { ok, data } = await createDomain(hostname);
+		const normalized = hostname.toLowerCase().trim();
+		let checkedDomain = domainCheck;
+		let sendingRequested = enableSending;
+		if (checkedDomain?.hostname !== normalized) {
+			const result = await checkDomain(normalized);
+			if (!result.ok || !result.domain) {
+				setLoading(false);
+				setError(result.error ?? "Domain check failed");
+				return;
+			}
+			checkedDomain = result.domain;
+			sendingRequested = false;
+			setDomainCheck(result.domain);
+			setEnableSending(sendingRequested);
+		}
+		if (!checkedDomain) {
+			setLoading(false);
+			setError("Domain check failed");
+			return;
+		}
+
+		const { ok, data } = await createDomain(checkedDomain.hostname, sendingRequested, replaceMxRecords);
 		setLoading(false);
 		if (!ok || !data.domain) {
+			if (data.code === "MX_RECORDS_CONFLICT") {
+				setMxConflict(true);
+				setError(null);
+				return;
+			}
 			setError(data.error ?? "Failed to add domain");
 			return;
 		}
+		setMxConflict(false);
 		setDomainId(data.domain.id);
 		setStep(2);
+	}
+
+	async function inspectDomain() {
+		const normalized = hostname.toLowerCase().trim();
+		if (normalized.length < 3 || domainCheck?.hostname === normalized) return;
+
+		setDomainChecking(true);
+		setError(null);
+		setMxConflict(false);
+		const result = await checkDomain(normalized);
+		setDomainChecking(false);
+		if (!result.ok || !result.domain) {
+			setDomainCheck(null);
+			setEnableSending(false);
+			setError(result.error ?? "Domain check failed");
+			return;
+		}
+
+		setDomainCheck(result.domain);
+		setEnableSending(false);
 	}
 
 	async function addMailbox() {
@@ -63,7 +116,7 @@ export function OnboardingClient() {
 			title={step === 1 ? "Connect mail routing" : "Create your first mailbox"}
 			description={
 				step === 1
-					? "Add the Cloudflare domain that will receive and send mail through this workspace."
+					? "Add the Cloudflare domain that will receive mail and optionally send through this workspace."
 					: "Choose the mailbox address that should open directly into the inbox."
 			}
 			steps={[
@@ -89,17 +142,74 @@ export function OnboardingClient() {
 							<Input
 								id="domain"
 								value={hostname}
-								onChange={(e) => setHostname(e.target.value)}
+								onChange={(e) => {
+									setHostname(e.target.value);
+									if (domainCheck?.hostname !== e.target.value.toLowerCase().trim()) {
+										setDomainCheck(null);
+										setEnableSending(false);
+										setMxConflict(false);
+									}
+								}}
+								onBlur={() => void inspectDomain()}
 								placeholder="example.com"
 							/>
 						</div>
-						<Button
-							onClick={addDomain}
-							disabled={!hostname || loading}
-							className="h-11 w-full rounded-full px-6 active:scale-[0.98]"
-						>
-							{loading ? "Adding..." : "Add domain"}
-						</Button>
+						<div className="flex items-center justify-between gap-4 rounded-2xl bg-neutral-50 px-4 py-3">
+							<div>
+								<Label htmlFor="onboarding-enable-sending">Enable sending</Label>
+								<p className="mt-1 text-xs leading-5 text-neutral-500">
+									{domainChecking
+										? "Checking Cloudflare access..."
+										: domainCheck
+											? enableSending
+												? "Required to send email."
+												: "Receive-only mode."
+											: "Leave the domain field to verify it."}
+								</p>
+							</div>
+							{domainChecking ? (
+								<LoaderCircle className="h-4 w-4 animate-spin text-neutral-500" />
+							) : (
+								<Switch
+									id="onboarding-enable-sending"
+									checked={enableSending}
+									onCheckedChange={setEnableSending}
+									disabled={!domainCheck}
+								/>
+							)}
+						</div>
+						{domainCheck && (
+							<div className="flex items-center gap-3 rounded-2xl bg-green-50 px-4 py-3 text-sm text-green-700">
+								<CheckCircle2 className="h-4 w-4" />
+								Domain found in Cloudflare as {domainCheck.zone.name}
+							</div>
+						)}
+						{mxConflict && (
+							<div className="space-y-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-amber-900">
+								<div className="flex items-start gap-3">
+									<AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+									<p className="text-sm leading-6">
+										Existing MX records deliver mail to another provider. Continuing deletes those records and replaces them with Cloudflare Email Routing, so the previous provider will stop receiving mail.
+									</p>
+								</div>
+								<Button
+									onClick={() => void addDomain(true)}
+									disabled={loading}
+									className="h-11 w-full rounded-full px-6 active:scale-[0.98]"
+								>
+									{loading ? "Replacing MX records..." : "Delete MX records and continue"}
+								</Button>
+							</div>
+						)}
+						{!mxConflict && (
+							<Button
+								onClick={() => void addDomain()}
+								disabled={!hostname || loading || domainChecking}
+								className="h-11 w-full rounded-full px-6 active:scale-[0.98]"
+							>
+								{loading ? "Adding..." : "Add domain"}
+							</Button>
+						)}
 					</>
 				)}
 				{step === 2 && (

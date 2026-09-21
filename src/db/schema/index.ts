@@ -12,6 +12,13 @@ export const users = sqliteTable("users", {
 	role: text("role", { enum: ["admin", "user"] }).notNull().default("user"),
 	disabled: integer("disabled", { mode: "boolean" }).notNull().default(false),
 	canManageMailboxes: integer("can_manage_mailboxes", { mode: "boolean" }).notNull().default(false),
+	keyboardShortcutsEnabled: integer("keyboard_shortcuts_enabled", { mode: "boolean" }).notNull().default(true),
+	spamProtectionEnabled: integer("spam_protection_enabled", { mode: "boolean" }).notNull().default(true),
+	// TOTP second factor. The secret is written at enrolment and only counts
+	// once the user has proven a code from their authenticator.
+	totpSecret: text("totp_secret"),
+	totpEnabled: integer("totp_enabled", { mode: "boolean" }).notNull().default(false),
+	totpConfirmedAt: integer("totp_confirmed_at", { mode: "timestamp" }),
 	createdByUserId: text("created_by_user_id").references((): AnySQLiteColumn => users.id, { onDelete: "set null" }),
 	createdAt: integer("created_at", { mode: "timestamp" })
 		.notNull()
@@ -32,6 +39,7 @@ export const domains = sqliteTable(
 			.default("pending"),
 		routingStatus: text("routing_status"),
 		sendingSubdomainTag: text("sending_subdomain_tag"),
+		sendingRequested: integer("sending_requested", { mode: "boolean" }).notNull().default(false),
 		sendingEnabled: integer("sending_enabled", { mode: "boolean" }).notNull().default(false),
 		routingEnabled: integer("routing_enabled", { mode: "boolean" }).notNull().default(false),
 		createdAt: integer("created_at", { mode: "timestamp" })
@@ -142,6 +150,7 @@ export const contacts = sqliteTable(
 			.references(() => users.id, { onDelete: "cascade" }),
 		email: text("email").notNull(),
 		displayName: text("display_name"),
+		avatarKey: text("avatar_key"),
 		source: text("source", { enum: ["manual", "inbound", "outbound"] })
 			.notNull()
 			.default("inbound"),
@@ -208,6 +217,8 @@ export const messages = sqliteTable(
 		folderId: text("folder_id").references(() => folders.id, { onDelete: "set null" }),
 		fromAddr: text("from_addr").notNull(),
 		toAddr: text("to_addr").notNull(),
+		ccAddr: text("cc_addr"),
+		bccAddr: text("bcc_addr"),
 		subject: text("subject"),
 		snippet: text("snippet"),
 		textBody: text("text_body"),
@@ -218,6 +229,15 @@ export const messages = sqliteTable(
 		starred: integer("starred", { mode: "boolean" }).notNull().default(false),
 		snoozedUntil: integer("snoozed_until", { mode: "timestamp" }),
 		threadId: text("thread_id"),
+		// RFC 5322 threading headers, kept so replies land in the right conversation
+		// and so outgoing replies can carry them on to the recipient's client.
+		inReplyTo: text("in_reply_to"),
+		references: text("references_header"),
+		spamScore: integer("spam_score"),
+		spamVerdict: text("spam_verdict", { enum: ["inbox", "suspicious", "spam"] }),
+		spamSignals: text("spam_signals"),
+		spamAnalyzedAt: integer("spam_analyzed_at", { mode: "timestamp" }),
+		spamAnalysisError: text("spam_analysis_error"),
 		createdAt: integer("created_at", { mode: "timestamp" })
 			.notNull()
 			.$defaultFn(() => new Date()),
@@ -226,7 +246,59 @@ export const messages = sqliteTable(
 		index("messages_user_created_idx").on(t.userId, t.createdAt),
 		index("messages_mailbox_idx").on(t.mailboxId),
 		index("messages_folder_idx").on(t.folderId),
+		index("messages_thread_idx").on(t.mailboxId, t.threadId),
+		index("messages_provider_message_idx").on(t.mailboxId, t.providerMessageId),
+		index("messages_raw_r2_key_idx").on(t.rawR2Key),
 	],
+);
+
+export const spamTokenStats = sqliteTable(
+	"spam_token_stats",
+	{
+		mailboxId: text("mailbox_id").notNull().references(() => mailboxes.id, { onDelete: "cascade" }),
+		token: text("token").notNull(),
+		spamCount: integer("spam_count").notNull().default(0),
+		hamCount: integer("ham_count").notNull().default(0),
+		updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+	},
+	(t) => [
+		uniqueIndex("spam_token_stats_mailbox_token_idx").on(t.mailboxId, t.token),
+		index("spam_token_stats_mailbox_idx").on(t.mailboxId),
+	],
+);
+
+export const spamReputation = sqliteTable(
+	"spam_reputation",
+	{
+		mailboxId: text("mailbox_id").notNull().references(() => mailboxes.id, { onDelete: "cascade" }),
+		type: text("type", { enum: ["email", "domain", "fingerprint"] }).notNull(),
+		key: text("key").notNull(),
+		messagesSeen: integer("messages_seen").notNull().default(0),
+		spamCount: integer("spam_count").notNull().default(0),
+		hamCount: integer("ham_count").notNull().default(0),
+		firstSeenAt: integer("first_seen_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+		lastSeenAt: integer("last_seen_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+	},
+	(t) => [
+		uniqueIndex("spam_reputation_mailbox_type_key_idx").on(t.mailboxId, t.type, t.key),
+		index("spam_reputation_mailbox_idx").on(t.mailboxId),
+	],
+);
+
+export const spamFeedback = sqliteTable(
+	"spam_feedback",
+	{
+		messageId: text("message_id").primaryKey().references(() => messages.id, { onDelete: "cascade" }),
+		mailboxId: text("mailbox_id").notNull().references(() => mailboxes.id, { onDelete: "cascade" }),
+		actorUserId: text("actor_user_id").references(() => users.id, { onDelete: "set null" }),
+		classification: text("classification", { enum: ["spam", "ham"] }).notNull(),
+		trainingTokens: text("training_tokens").notNull(),
+		reputationKeys: text("reputation_keys").notNull(),
+		tokenizerVersion: integer("tokenizer_version").notNull().default(1),
+		createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+		updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+	},
+	(t) => [index("spam_feedback_mailbox_idx").on(t.mailboxId)],
 );
 
 export const messageAttachments = sqliteTable(
@@ -404,6 +476,58 @@ export const sessions = sqliteTable("sessions", {
 		.$defaultFn(() => new Date()),
 });
 
+/** Single-use links mailed to a user's recovery address. Only the hash is stored. */
+export const passwordResetTokens = sqliteTable(
+	"password_reset_tokens",
+	{
+		id: text("id").primaryKey(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => users.id, { onDelete: "cascade" }),
+		tokenHash: text("token_hash").notNull().unique(),
+		expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
+		usedAt: integer("used_at", { mode: "timestamp" }),
+		createdAt: integer("created_at", { mode: "timestamp" })
+			.notNull()
+			.$defaultFn(() => new Date()),
+	},
+	(t) => [index("password_reset_tokens_user_idx").on(t.userId)],
+);
+
+/** One-time backup codes for accounts with TOTP, hashed like session tokens. */
+export const mfaRecoveryCodes = sqliteTable(
+	"mfa_recovery_codes",
+	{
+		id: text("id").primaryKey(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => users.id, { onDelete: "cascade" }),
+		codeHash: text("code_hash").notNull().unique(),
+		usedAt: integer("used_at", { mode: "timestamp" }),
+		createdAt: integer("created_at", { mode: "timestamp" })
+			.notNull()
+			.$defaultFn(() => new Date()),
+	},
+	(t) => [index("mfa_recovery_codes_user_idx").on(t.userId)],
+);
+
+/**
+ * A password that checked out but still needs a second factor. The challenge
+ * token stands in for the password on the follow-up request, so the password
+ * is never held client-side between the two steps.
+ */
+export const loginChallenges = sqliteTable("login_challenges", {
+	id: text("id").primaryKey(),
+	userId: text("user_id")
+		.notNull()
+		.references(() => users.id, { onDelete: "cascade" }),
+	tokenHash: text("token_hash").notNull().unique(),
+	expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
+	createdAt: integer("created_at", { mode: "timestamp" })
+		.notNull()
+		.$defaultFn(() => new Date()),
+});
+
 export const auditLogs = sqliteTable(
 	"audit_logs",
 	{
@@ -501,6 +625,9 @@ export const schema = {
 	folders,
 	apiKeys,
 	messages,
+	spamTokenStats,
+	spamReputation,
+	spamFeedback,
 	messageAttachments,
 	outboundJobs,
 	emailTemplates,

@@ -4,7 +4,19 @@ export type Domain = {
 	status: string;
 	routingEnabled: boolean;
 	sendingEnabled: boolean;
+	sendingRequested: boolean;
 	zoneId: string;
+};
+
+export type DomainPreflight = {
+	hostname: string;
+	zone: { id: string; name: string };
+};
+
+export type DomainPreflightResponse = {
+	ok: boolean;
+	domain?: DomainPreflight;
+	error?: string;
 };
 
 export type DnsRecord = {
@@ -14,9 +26,24 @@ export type DnsRecord = {
 	priority?: number;
 };
 
+export type DnsAuthRecord = "mx" | "spf" | "dkim" | "dmarc";
+
+export type DnsAuthStatus = "ok" | "missing" | "unknown";
+
+export type DnsAuthCheck = {
+	record: DnsAuthRecord;
+	label: string;
+	name: string;
+	status: DnsAuthStatus;
+	found: string[];
+};
+
+export type DomainDnsAudit = Record<DnsAuthRecord, DnsAuthCheck>;
+
 export type DnsStatusSummary = {
 	routing: { configured: boolean; missing: string[] };
 	sending: { configured: boolean; records: string[] };
+	auth?: Record<DnsAuthRecord, DnsAuthStatus>;
 };
 
 export type DomainDnsView = {
@@ -27,9 +54,31 @@ export type DomainDnsView = {
 	};
 	sending: DnsRecord[];
 	sendingEnabled: boolean;
+	dkimSelector?: string;
+	sendingSubdomain?: { name: string; tag: string };
+	audit?: DomainDnsAudit;
 };
+
+export type DomainDnsCache = Record<string, { domain: Domain; dns: DomainDnsView }>;
 
 export type DomainDnsDetailsProps = {
 	domain: Domain;
 	dns: DomainDnsView;
+	onSetup?: (record: DnsAuthRecord) => void;
+	setupRecord?: DnsAuthRecord | null;
+	setupMessage?: string | null;
+};
+
+export type DomainItemCardProps = {
+	item: Domain;
+	dns?: DnsStatusSummary;
+	dnsDetails?: DomainDnsView;
+	dnsLoading?: boolean;
+	dnsError?: string | null;
+	expanded?: boolean;
+	remove: { mutate: (id: string) => void; isPending: boolean };
+	onToggleDns: (id: string) => void;
+	onSetup?: (record: DnsAuthRecord) => void;
+	setupRecord?: DnsAuthRecord | null;
+	setupMessage?: string | null;
 };

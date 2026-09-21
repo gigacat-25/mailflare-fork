@@ -1,9 +1,13 @@
 export type CfDnsRecord = {
+	id?: string;
 	type?: string;
 	name?: string;
 	content?: string;
 	priority?: number;
 	ttl?: number;
+	proxied?: boolean;
+	comment?: string;
+	tags?: string[];
 };
 
 export type CfApiError = {
@@ -52,4 +56,9 @@ export type CfSendingSubdomain = {
 	tag: string;
 	name: string;
 	enabled: boolean;
+	/** The selector Cloudflare signs DKIM with, published at `<selector>._domainkey.<name>`. */
+	dkim_selector?: string;
+	return_path_domain?: string;
+	created?: string;
+	modified?: string;
 };

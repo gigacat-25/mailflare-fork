@@ -10,6 +10,8 @@ import { selectDraftWithBody } from "./utils";
 import { readJsonBody } from "@/lib/http/request";
 import { RequestBodyTooLargeError } from "@/lib/http/errors";
 import { getDraftSender, userOwnsDraft } from "../utils";
+import { listMessageAttachments } from "@/lib/email/attachments";
+import { deleteMessageWithObjects } from "@/lib/email/message-cleanup";
 
 export async function GET(request: Request, { params }: DraftRouteParams) {
 	const { id } = await params;
@@ -22,7 +24,8 @@ export async function GET(request: Request, { params }: DraftRouteParams) {
 		return NextResponse.json({ error: "Draft not found" }, { status: 404 });
 	}
 
-	return NextResponse.json({ draft });
+	const attachments = await listMessageAttachments(env, id);
+	return NextResponse.json({ draft: { ...draft, attachments } });
 }
 
 export async function PATCH(request: Request, { params }: DraftRouteParams) {
@@ -55,6 +58,8 @@ export async function PATCH(request: Request, { params }: DraftRouteParams) {
 			mailboxId: sender.mailboxId,
 			fromAddr: sender.fromAddr,
 			toAddr: input.to ?? "",
+			ccAddr: input.cc || null,
+			bccAddr: input.bcc || null,
 			subject: input.subject ?? null,
 			snippet: buildSnippet(text || null, html || null),
 			textBody: text || null,
@@ -76,6 +81,6 @@ export async function DELETE(request: Request, { params }: DraftRouteParams) {
 		return NextResponse.json({ error: "Draft not found" }, { status: 404 });
 	}
 
-	await db.delete(messages).where(eq(messages.id, id));
+	await deleteMessageWithObjects(env, db, id, draft.rawR2Key);
 	return NextResponse.json({ ok: true });
 }

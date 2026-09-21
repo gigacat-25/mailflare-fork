@@ -1,13 +1,35 @@
 import { z } from "zod";
+import { getEmailAddress, splitEmailAddressList } from "@/lib/email/address";
 import { DEFAULT_FOLDER_COLOR, FOLDER_COLOR_VALUES } from "@/lib/folders/colors";
+
+/**
+ * Recipients arrive either as one comma-separated header string (the composer)
+ * or as an array (the public API). Both normalise to a trimmed list of entries
+ * that still carry their display names.
+ */
+const recipientListSchema = z
+	.union([z.string().max(5000), z.array(z.string().trim().min(3).max(500)).max(50)])
+	.transform((value) => (Array.isArray(value) ? value : splitEmailAddressList(value)))
+	.refine((list) => list.length <= 50, "A message can have at most 50 recipients per field")
+	.refine((list) => list.every((entry) => getEmailAddress(entry).includes("@")), "Enter valid email addresses");
+
+const messageIdListSchema = z
+	.union([z.string().max(5000), z.array(z.string().max(998)).max(50)])
+	.transform((value) => (Array.isArray(value) ? value.join(" ") : value));
 
 export const sendEmailSchema = z.object({
 	from: z.string().min(3).max(500),
-	to: z.string().min(3).max(500),
+	to: recipientListSchema.refine((list) => list.length > 0, "At least one recipient is required"),
+	cc: recipientListSchema.optional(),
+	bcc: recipientListSchema.optional(),
 	subject: z.string().min(1).max(500),
+	inReplyTo: z.string().max(998).optional(),
+	references: messageIdListSchema.optional(),
+	threadId: z.string().max(998).optional(),
 	html: z.string().max(2 * 1024 * 1024).optional(),
 	text: z.string().max(2 * 1024 * 1024).optional(),
 	mailboxId: z.string().min(1).max(200),
+	scheduledAt: z.string().datetime().optional(),
 	attachments: z
 		.array(
 			z.object({
@@ -28,6 +50,8 @@ export const registerSchema = z.object({
 
 export const firstRunRegisterSchema = z.object({
 	domain: z.string().min(3),
+	enableSending: z.boolean().optional(),
+	replaceMxRecords: z.boolean().optional(),
 	username: z.string().min(1).max(64).regex(/^[a-zA-Z0-9._%+-]+$/),
 	password: z.string().min(8),
 	resetEmail: z.string().email(),
@@ -47,11 +71,39 @@ export const addDomainSchema = z.object({
 	hostname: z.string().min(3),
 	enableRouting: z.boolean().optional(),
 	enableSending: z.boolean().optional(),
+	replaceMxRecords: z.boolean().optional(),
 });
 
 export const loginSchema = z.object({
 	email: z.string().email(),
 	password: z.string().min(1),
+});
+
+export const passwordResetRequestSchema = z.object({
+	email: z.string().trim().email(),
+});
+
+export const passwordResetConfirmSchema = z.object({
+	token: z.string().min(8).max(200),
+	password: z.string().min(8).max(128),
+});
+
+export const mfaVerifySchema = z.object({
+	challengeToken: z.string().min(8).max(200),
+	code: z.string().trim().min(6).max(32),
+});
+
+export const mfaEnrollSchema = z.object({
+	password: z.string().min(1),
+});
+
+export const mfaConfirmSchema = z.object({
+	code: z.string().trim().min(6).max(12),
+});
+
+export const mfaDisableSchema = z.object({
+	password: z.string().min(1),
+	code: z.string().trim().min(6).max(32),
 });
 
 export const domainSchema = z.object({
@@ -74,6 +126,11 @@ export const updateManagedAccountSchema = z.object({
 	forwardingEmail: z.preprocess(
 		(value) => (typeof value === "string" ? value.trim() : value),
 		z.string().email().or(z.literal("")).optional().transform((value) => value === undefined ? undefined : value || null),
+	),
+	/** Set a new password for the account; every session of that user is revoked. */
+	password: z.preprocess(
+		(value) => (typeof value === "string" ? value.trim() : value),
+		z.string().min(8).max(128).or(z.literal("")).optional().transform((value) => value || null),
 	),
 });
 
@@ -164,6 +221,14 @@ export const updateForwardingEmailSchema = z.object({
 		(value) => (typeof value === "string" ? value.trim() : value),
 		z.string().email().or(z.literal("")).transform((value) => value || null),
 	),
+});
+
+export const updateShortcutsSettingsSchema = z.object({
+	enabled: z.boolean(),
+});
+
+export const updateSpamSettingsSchema = z.object({
+	enabled: z.boolean(),
 });
 
 export const changePasswordSchema = z.object({

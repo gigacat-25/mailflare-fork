@@ -4,8 +4,9 @@ import { requireUser } from "@/lib/auth/cookies";
 import { getEnv } from "@/lib/cloudflare";
 import { normalizeEmailAddress } from "@/lib/email/address";
 import { getMailboxAccessLevel } from "@/lib/mailboxes/access";
+import { getPersonalIdentityForAddress, syncPersonalIdentity } from "@/lib/profile/sync";
 import type { ContactRequestInput } from "./types";
-import { getContactByEmail, saveManualContactName } from "./utils";
+import { getContactByEmail, saveManualContactName, toContactDetails } from "./utils";
 
 export async function GET(request: Request) {
 	const env = getEnv();
@@ -22,11 +23,24 @@ export async function GET(request: Request) {
 	if (!access?.canRead) {
 		return NextResponse.json({ error: "Mailbox not found" }, { status: 404 });
 	}
-	const contact = await getContactByEmail(db, access.mailbox.userId, email);
+	const storedContact = toContactDetails(await getContactByEmail(db, access.mailbox.userId, email));
+	const account = await getPersonalIdentityForAddress(db, access.mailbox.userId, email);
+	const contact = account
+		? {
+				...(storedContact ?? {}),
+				email,
+				displayName: account.name,
+				hasAvatar: !!account.avatarKey,
+				source: "manual" as const,
+				blocked: storedContact?.blocked ?? false,
+				lastSeenAt: storedContact?.lastSeenAt ?? null,
+			}
+		: storedContact;
 	return NextResponse.json({
 		contact: contact ?? {
 			email,
 			displayName: null,
+			hasAvatar: false,
 			source: null,
 			blocked: false,
 			lastSeenAt: null,
@@ -49,10 +63,21 @@ export async function PATCH(request: Request) {
 	if (!access?.canManage) {
 		return NextResponse.json({ error: "Mailbox not found" }, { status: 404 });
 	}
-	const contact = await saveManualContactName(db, {
+	const account = await getPersonalIdentityForAddress(db, access.mailbox.userId, email);
+	if (account) {
+		if (account.userId !== user.id) {
+			return NextResponse.json({ error: "Only the account owner can change this contact" }, { status: 403 });
+		}
+		await syncPersonalIdentity(db, {
+			userId: account.userId,
+			name: displayName,
+			avatarKey: account.avatarKey,
+		});
+	}
+	const contact = toContactDetails(await saveManualContactName(db, {
 		userId: access.mailbox.userId,
 		email,
 		displayName,
-	});
+	}));
 	return NextResponse.json({ contact });
 }

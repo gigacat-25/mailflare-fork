@@ -11,6 +11,7 @@ import {
 	getCloudflareAuthHint,
 	getEmailWorkerName,
 } from "@/lib/cloudflare-api-utils";
+import { CloudflareApiError } from "@/lib/cloudflare-api-error";
 import { getZoneLookupCandidates } from "@/lib/domains/utils";
 export type { CfDnsRecord } from "@/lib/cloudflare-api.types";
 
@@ -31,11 +32,21 @@ export async function cfRequest<T>(
 	const json = (await res.json()) as CfResponse<T>;
 
 	if (!json.success) {
-		throw new Error(
+		throw new CloudflareApiError(
 			`${formatCloudflareError(path, res.status, res.statusText, json.errors ?? [])}${getCloudflareAuthHint(json.errors ?? [])}`,
+			res.status,
+			path,
+			json.errors ?? [],
 		);
 	}
 	return json.result;
+}
+
+export async function getZone(
+	env: CloudflareEnv,
+	zoneId: string,
+): Promise<{ id: string; name: string }> {
+	return cfRequest<{ id: string; name: string }>(env, `/zones/${zoneId}`);
 }
 
 export async function findZoneByHostname(
@@ -208,6 +219,7 @@ export async function ensureEmailRoutingRuleToWorker(
 	zoneId: string,
 	address: string,
 ) {
+	if (zoneId === "manual") return;
 	const normalized = address.toLowerCase();
 	const workerName = getEmailWorkerName();
 	const rules = await listEmailRoutingRules(env, zoneId);
@@ -239,6 +251,7 @@ export async function deleteEmailRoutingRuleForAddress(
 	zoneId: string,
 	address: string,
 ): Promise<boolean> {
+	if (zoneId === "manual") return false;
 	const normalized = address.toLowerCase();
 	const workerName = getEmailWorkerName();
 	const rules = await listEmailRoutingRules(env, zoneId);

@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { CalendarDays, Check, LogOut, Settings, ShieldCheck, UserRound, UsersRound } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useSelectedMailbox } from "@/components/mailbox-provider";
+import { isIdentityMailbox } from "@/components/mailbox-provider-utils";
 import { useMessageCounts } from "@/hooks/use-message-counts";
 import { authFetch } from "@/lib/auth/client";
 import { logoutClientSession } from "@/lib/auth/logout";
@@ -142,11 +143,21 @@ export function MailboxSelector() {
 			const detail = (event as CustomEvent<ProfileAvatarChangedDetail>).detail;
 			setAvatarUrl(detail?.url ?? getProfileAvatarUrl());
 			setHasAvatar(true);
+			setMailboxAvatarUrls((current) => {
+				const next = { ...current };
+				const version = Date.now();
+				for (const mailbox of mailboxes) {
+					if (isIdentityMailbox(mailbox)) {
+						next[mailbox.id] = `/api/mailboxes/${mailbox.id}/avatar?v=${version}`;
+					}
+				}
+				return next;
+			});
 		}
 
 		window.addEventListener(PROFILE_AVATAR_CHANGED_EVENT, onAvatarChanged);
 		return () => window.removeEventListener(PROFILE_AVATAR_CHANGED_EVENT, onAvatarChanged);
-	}, []);
+	}, [mailboxes]);
 
 	useEffect(() => {
 		function onNameChanged(event: Event) {
@@ -217,7 +228,7 @@ export function MailboxSelector() {
 			</button>
 
 			{open && (
-				<div className="absolute right-0 top-14 z-50 w-[360px] overflow-hidden rounded-[28px] border border-neutral-200 bg-[#eef3fb] p-3 shadow-2xl shadow-neutral-900/20">
+				<div className="absolute right-0 top-14 z-50 w-[360px] overflow-hidden rounded-[28px] border border-neutral-200 bg-[#eef3fb] p-3 shadow-2xl shadow-neutral-900/20 max-h-[82vh] overflow-y-auto">
 					<div className="rounded-[22px] bg-white px-5 py-5">
 						<div className="flex items-center gap-4">
 							<AccountAvatar

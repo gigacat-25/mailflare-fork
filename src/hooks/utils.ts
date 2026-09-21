@@ -1,30 +1,21 @@
 import { authFetch } from "@/lib/auth/client";
+import { parseSearchQuery } from "@/lib/search/query-utils";
 import type { MessageFilterOptions, MessageFolder } from "./types";
 import type { MessageCounts, MessageListResponse } from "./types";
 
 export const MESSAGE_POLL_INTERVAL_MS = 15_000;
 
+/**
+ * The search string goes to the server whole; operators are parsed there
+ * against the full-text index. Only the read state is lifted out here so the
+ * unread toggle and `is:unread` share one `read` parameter.
+ */
 export function parseMessageSearchQuery(query: string): MessageFilterOptions {
-	let remaining = query;
+	const parsed = parseSearchQuery(query);
 	const filters: MessageFilterOptions = {};
-	const titleMatch = remaining.match(/\btitle:"([^"]+)"/i) ?? remaining.match(/\btitle:([^\s]+)/i);
-
-	if (titleMatch?.[1]) {
-		filters.title = titleMatch[1].trim();
-		remaining = remaining.replace(titleMatch[0], " ");
-	}
-
-	if (/(^|\s):unread(\s|$)/i.test(remaining)) {
-		filters.read = "unread";
-		remaining = remaining.replace(/(^|\s):unread(?=\s|$)/gi, " ");
-	} else if (/(^|\s):read(\s|$)/i.test(remaining)) {
-		filters.read = "read";
-		remaining = remaining.replace(/(^|\s):read(?=\s|$)/gi, " ");
-	}
-
-	const textQuery = remaining.replace(/\s+/g, " ").trim();
-	if (textQuery) filters.query = textQuery;
-
+	if (parsed.read) filters.read = parsed.read;
+	const remaining = query.replace(/(^|\s)(is:(un)?read|:(un)?read)(?=\s|$)/gi, " ").replace(/\s+/g, " ").trim();
+	if (remaining) filters.query = remaining;
 	return filters;
 }
 
@@ -68,6 +59,7 @@ export function getMessageQueryParams(
 	if (parsedFilters?.read && parsedFilters.read !== "all") params.set("read", parsedFilters.read);
 	if (filters?.limit) params.set("limit", String(filters.limit));
 	if (filters?.offset) params.set("offset", String(filters.offset));
+	if (filters?.group) params.set("group", filters.group);
 
 	return params;
 }

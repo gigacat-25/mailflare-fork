@@ -1,4 +1,7 @@
 import type { CfDnsRecord } from "@/lib/cloudflare-api";
+import type { DnsAuthRecord, DnsAuthStatus, DomainDnsAudit } from "@/lib/domains/dns-audit";
+
+export type DnsAuthSummary = Record<DnsAuthRecord, DnsAuthStatus>;
 
 export type DnsStatusSummary = {
 	routing: {
@@ -9,6 +12,7 @@ export type DnsStatusSummary = {
 		configured: boolean;
 		records: string[];
 	};
+	auth?: DnsAuthSummary;
 };
 
 export function summariseDns(
@@ -17,6 +21,7 @@ export function summariseDns(
 	sendingRecords: CfDnsRecord[],
 	routingEnabled = false,
 	sendingEnabled?: boolean,
+	audit?: DomainDnsAudit,
 ): DnsStatusSummary {
 	const recordTypes = (
 		type: "routing-records" | "routing-missing" | "sending",
@@ -39,5 +44,13 @@ export function summariseDns(
 			configured: sendingEnabled ?? sendingRecords.length > 0,
 			records: recordTypes("sending"),
 		},
+		auth: audit
+			? {
+					mx: audit.mx.status,
+					spf: audit.spf.status,
+					dkim: audit.dkim.status,
+					dmarc: audit.dmarc.status,
+				}
+			: undefined,
 	};
 }

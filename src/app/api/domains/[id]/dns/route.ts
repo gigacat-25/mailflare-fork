@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { getEnv } from "@/lib/cloudflare";
 import { requireUser } from "@/lib/auth/cookies";
-import { getDomainDns, getDomainForUser } from "@/lib/domains/service";
+import { getDomainForUser } from "@/lib/domains/service";
+import { getDomainDnsView } from "@/lib/domains/dns-view";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -13,7 +14,7 @@ export async function GET(request: Request, { params }: Params) {
 	if (!domain) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
 	try {
-		const dns = await getDomainDns(env, domain);
+		const dns = await getDomainDnsView(env, domain);
 		return NextResponse.json({
 			domain: { ...domain, sendingEnabled: dns.sendingEnabled },
 			dns,

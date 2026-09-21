@@ -10,14 +10,49 @@ import {
 	getEmailRoutingCatchAll,
 } from "@/lib/domains/catch-all-routing";
 import { isZoneApex } from "@/lib/domains/utils";
+import { hasCloudflareCredentials, isNodeRuntime } from "@/lib/runtime";
 import type { DomainProvisioningChanges, DomainProvisioningResult } from "@/lib/domains/types";
+import { removeMxRecords } from "@/lib/domains/mx-records";
+import { rollbackDomainProvisioning } from "@/lib/domains/rollback";
+
+/** Node/Docker has no Email Worker; a catch-all PUT to one 404s (CF 2016). */
+export function shouldBindEmailCatchAllToWorker(
+	env?: Pick<CloudflareEnv, "MAILFLARE_RUNTIME">,
+): boolean {
+	return !isNodeRuntime(env);
+}
+
+/**
+ * Zone id recorded for domains the app does not manage on Cloudflare (a
+ * self-hosted install without API credentials). Every Cloudflare call that
+ * receives it is a no-op, and the DNS page shows records to set by hand.
+ */
+export const MANUAL_ZONE_ID = "manual";
+
+export function isManualZone(zoneId: string | null | undefined): boolean {
+	return zoneId === MANUAL_ZONE_ID;
+}
 
 export async function provisionDomainOnCloudflare(
 	env: CloudflareEnv,
 	hostname: string,
-	options?: { enableRouting?: boolean; enableSending?: boolean },
+	options?: { enableRouting?: boolean; enableSending?: boolean; replaceMxRecords?: boolean },
 ): Promise<DomainProvisioningResult> {
 	const normalized = hostname.toLowerCase().trim();
+	if (!hasCloudflareCredentials(env)) {
+		// Nothing to provision: the operator points MX at this server themselves.
+		return {
+			hostname: normalized,
+			zone: { id: MANUAL_ZONE_ID, name: normalized },
+			// Mail arrives whenever MX points at this server, so the domain is live at once.
+			routingEnabled: options?.enableRouting ?? true,
+			sendingRequested: options?.enableSending ?? true,
+			sendingEnabled: false,
+			sendingSubdomainTag: null,
+			routingStatus: "manual",
+			changes: { zoneId: MANUAL_ZONE_ID, enabledEmailRouting: false, createdSendingSubdomainTag: null, previousCatchAll: null, createdAddressRules: [], deletedMxRecords: [] },
+		};
+	}
 	const zone = await findZoneByHostname(env, normalized);
 	if (!zone) {
 		throw new Error(
@@ -38,54 +73,65 @@ export async function provisionDomainOnCloudflare(
 		createdSendingSubdomainTag: null,
 		previousCatchAll: null,
 		createdAddressRules: [],
+		deletedMxRecords: [],
 	};
 
-	if (enableRouting) {
-		// Record the zone's prior state before changing it: rolling back must only
-		// undo what this call did, never Email Routing the account already had.
-		// If the state cannot be read, assume it was already on — leaving an orphan
-		// behind is far cheaper than disabling a zone someone else's mail depends on.
-		let routingWasEnabled = true;
-		try {
-			const settings = await getEmailRoutingSettings(env, zone.id);
-			routingWasEnabled = settings.enabled === true;
-		} catch {
-			// Keep the fail-safe default.
-		}
-		// The catch-all is a singleton and the PUT below overwrites it, so keep a copy.
-		changes.previousCatchAll = routingWasEnabled ? await getEmailRoutingCatchAll(env, zone.id) : null;
-
-		const routingName = isZoneApex(normalized, zone.name) ? undefined : normalized;
-		const routing = await enableEmailRouting(env, zone.id, routingName);
-		changes.enabledEmailRouting = !routingWasEnabled;
-		routingEnabled = routing.enabled ?? true;
-		routingStatus = routing.status;
-		await ensureEmailRoutingCatchAllToWorker(env, zone.id);
-	}
-
-	if (enableSending) {
-		try {
-			const subs = await listSendingSubdomains(env, zone.id);
-			const existingSub = subs.find((s) => s.name === normalized);
-			if (existingSub) {
-				sendingSubdomainTag = existingSub.tag;
-				sendingEnabled = existingSub.enabled;
-			} else {
-				const created = await createSendingSubdomain(env, zone.id, normalized);
-				sendingSubdomainTag = created.tag;
-				sendingEnabled = created.enabled;
-				changes.createdSendingSubdomainTag = created.tag;
+	try {
+		if (enableRouting) {
+			// Record the zone's prior state before changing it: rolling back must only
+			// undo what this call did, never Email Routing the account already had.
+			// If the state cannot be read, assume it was already on — leaving an orphan
+			// behind is far cheaper than disabling a zone someone else's mail depends on.
+			let routingWasEnabled = true;
+			try {
+				const settings = await getEmailRoutingSettings(env, zone.id);
+				routingWasEnabled = settings.enabled === true;
+			} catch {
+				// Keep the fail-safe default.
 			}
-		} catch (err) {
-			console.warn("Could not configure email sending subdomain (requires Workers Paid plan):", err);
-			sendingEnabled = isZoneApex(normalized, zone.name) ? routingEnabled : false;
+			// The catch-all is a singleton and the PUT below overwrites it, so keep a copy.
+			changes.previousCatchAll = routingWasEnabled ? await getEmailRoutingCatchAll(env, zone.id) : null;
+
+			const routingName = isZoneApex(normalized, zone.name) ? undefined : normalized;
+			if (options?.replaceMxRecords) {
+				await removeMxRecords(env, zone.id, routingName ?? zone.name, changes.deletedMxRecords);
+			}
+			const routing = await enableEmailRouting(env, zone.id, routingName);
+			changes.enabledEmailRouting = !routingWasEnabled;
+			routingEnabled = routing.enabled ?? true;
+			routingStatus = routing.status;
+			if (shouldBindEmailCatchAllToWorker(env)) {
+				await ensureEmailRoutingCatchAllToWorker(env, zone.id);
+			}
 		}
+		if (enableSending) {
+			try {
+				const subs = await listSendingSubdomains(env, zone.id);
+				const existingSub = subs.find((s) => s.name === normalized);
+				if (existingSub) {
+					sendingSubdomainTag = existingSub.tag;
+					sendingEnabled = existingSub.enabled;
+				} else {
+					const created = await createSendingSubdomain(env, zone.id, normalized);
+					sendingSubdomainTag = created.tag;
+					sendingEnabled = created.enabled;
+					changes.createdSendingSubdomainTag = created.tag;
+				}
+			} catch (err) {
+				console.warn("Could not configure email sending subdomain (requires Workers Paid plan):", err);
+				sendingEnabled = isZoneApex(normalized, zone.name) ? routingEnabled : false;
+			}
+		}
+	} catch (error) {
+		await rollbackDomainProvisioning(env, changes);
+		throw error;
 	}
 
 	return {
 		hostname: normalized,
 		zone,
 		routingEnabled,
+		sendingRequested: enableSending,
 		sendingEnabled,
 		sendingSubdomainTag,
 		routingStatus,

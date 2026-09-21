@@ -19,6 +19,11 @@ export interface PackageMetadata {
 	version?: string;
 }
 
+export interface UpdateConfigurationItem {
+	configured: boolean;
+	name: "GITHUB_UPDATE_REPO" | "GITHUB_UPDATE_TOKEN";
+}
+
 export interface UpdateDispatchConfig {
 	repository: string;
 	ref?: string;
@@ -26,8 +31,10 @@ export interface UpdateDispatchConfig {
 }
 
 export interface UpdateStatus {
-	available: boolean;
+	available?: boolean;
+	configuration: UpdateConfigurationItem[];
+	configured: boolean;
 	currentVersion: string;
-	repository: string;
-	targetVersion: string;
+	repository?: string;
+	targetVersion?: string;
 }

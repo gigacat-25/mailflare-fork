@@ -6,11 +6,12 @@ import { getDb } from "@/db";
 import { apiKeys } from "@/db/schema";
 import { requireUser } from "@/lib/auth/cookies";
 import { generateApiKey, scopesToJson } from "@/lib/api-keys";
+import { API_KEY_SCOPES } from "@/lib/api/scopes";
 import { newId } from "@/lib/ids";
 
 const createKeySchema = z.object({
 	name: z.string().min(1),
-	scopes: z.array(z.enum(["send", "read"])).min(1),
+	scopes: z.array(z.enum([...API_KEY_SCOPES])).min(1),
 });
 
 export async function GET(request: Request) {

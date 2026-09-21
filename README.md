@@ -6,15 +6,20 @@ Mailflare is a self-hosted email inbox for custom domains, built on Cloudflare.
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/hieunc229/mailflare)
 
-![Mailflare inbox](/screenshot.png)
+## Screenshots
 
-Thanks to mailflare sponsors. Want to support the project? Drop [@hieuSSR](https://x.com/hieuSSR) a message
+| ![Inbox](/screenshots/1.png)<br>Inbox | ![Manage domains](/screenshots/2.png)<br>Manage domains | ![Manage inboxes](/screenshots/3.png)<br>Manage inboxes |
+| --- | --- | --- |
 
 ### Featured sponsors
 
 <a target="_blank" href="https://sequenzy.com/?ref=hieunc229/mailflare">
-  <img width="160" src="/sponsors/sequenzy.png" alt="Sequenzy">
+  <img height="80" src="/sponsors/sequenzy.png" alt="Sequenzy">
+</a>  <a target="_blank" href="https://drivemug.com/?ref=hieunc229/mailflare">
+  <img height="80" src="https://mailflare.co/sponsors/drivemug.png" alt="Drivemug">
 </a>
+
+Want to support the mailflare? <a target="_blank" href="https://store.paymug.co/buy/mailflare-sponsor">Start sponsoring</a>
 
 ## What you can do
 
@@ -50,6 +55,17 @@ Getting started takes three steps:
 - All zones - DNS Settings:Edit, Email Routing Rules:Edit, Zone Settings:Edit, DNS:Edit
 
 See the [deployment guide](docs/deployment.md) for required permissions, manual deployment, backups, and updates.
+
+### Self-host with Docker instead
+
+Mailflare also runs as one container on any server, with SQLite and local files in place of D1 and R2, a built-in SMTP listener for inbound mail (or a small Cloudflare relay Worker if you want to keep MX on Cloudflare), and any SMTP relay or Cloudflare Email Sending for outbound.
+
+```bash
+cp .env.docker.example .env.docker
+docker compose up -d --build
+```
+
+See [docs/self-hosting.md](docs/self-hosting.md).
 
 ## Local development
 
