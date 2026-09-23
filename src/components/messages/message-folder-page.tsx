@@ -128,10 +128,15 @@ function MessageListRow({
 		);
 	}
 
-	const className =
-		`group relative grid min-h-12 w-full grid-cols-[24px_32px_minmax(160px,240px)_1fr_auto] items-center gap-3 px-6 text-left text-sm hover:z-10 hover:bg-[#f2f6fc] hover:shadow-sm ${active || selected ? "bg-blue-50" : ""
+	const desktopClassName =
+		`group relative hidden md:grid min-h-12 w-full grid-cols-[24px_32px_minmax(160px,240px)_1fr_auto] items-center gap-3 px-6 text-left text-sm hover:z-10 hover:bg-[#f2f6fc] hover:shadow-sm ${active || selected ? "bg-blue-50" : ""
 		} ${draggable ? "cursor-grab active:cursor-grabbing" : ""}`;
-	const content = (
+
+	const mobileClassName =
+		`relative flex md:hidden w-full items-start gap-3 px-3.5 py-3 border-b border-neutral-100/80 text-left hover:bg-[#f2f6fc] active:bg-blue-50/70 transition-colors ${active || selected ? "bg-blue-50/80" : ""
+		}`;
+
+	const desktopContent = (
 		<>
 			{config.folder === "inbox" && message.direction === "inbound" && (
 				<Tooltip label={starred ? "Starred" : "Not starred"}>
@@ -176,63 +181,138 @@ function MessageListRow({
 		</>
 	);
 
+	const mobileContent = (
+		<div className="flex min-w-0 flex-1 flex-col gap-0.5">
+			<div className="flex items-center justify-between gap-2">
+				<span className={clsx("truncate text-[13px]", unread ? "font-bold text-neutral-950" : "font-medium text-neutral-700", getMessagePartyClassName(rowMessage, config.folder))}>
+					{party}
+					{(message.threadCount ?? 1) > 1 && (
+						<span className="ml-1 text-xs font-normal text-neutral-500">({message.threadCount})</span>
+					)}
+				</span>
+				<time
+					dateTime={message.createdAt}
+					className={clsx("shrink-0 whitespace-nowrap text-[11px]", unread ? "font-semibold text-blue-600" : "text-neutral-400")}
+				>
+					{formatMessageListTimestamp(message.createdAt)}
+				</time>
+			</div>
+			<div className="flex items-center gap-1.5">
+				<p className={clsx("truncate text-[13px] leading-tight", unread ? "font-semibold text-neutral-900" : "text-neutral-800")}>
+					{rowMessage.subject ?? "(no subject)"}
+				</p>
+			</div>
+			<div className="flex items-center justify-between gap-2">
+				<p className="line-clamp-1 min-w-0 flex-1 text-xs text-neutral-500">
+					{getMessagePreview(rowMessage, config.folder)}
+				</p>
+				{config.folder === "inbox" && message.direction === "inbound" && (
+					<button
+						type="button"
+						onClick={(event) => {
+							event.preventDefault();
+							event.stopPropagation();
+							void toggleMessageStar(message.id).then((result) => setStarred(result.starred));
+						}}
+						aria-label={starred ? "Starred" : "Not starred"}
+						className="shrink-0 p-1 text-neutral-300 hover:text-amber-400 focus:outline-hidden"
+					>
+						<Icon className={`h-3.5 w-3.5 ${starred ? "fill-amber-400 text-amber-400" : "text-neutral-300"}`} />
+					</button>
+				)}
+			</div>
+		</div>
+	);
+
 	if (config.folder === "drafts") {
 		return (
-			<div className={className}>
+			<>
+				{/* Desktop */}
+				<div className={desktopClassName}>
+					<Checkbox
+						checked={selected}
+						onChange={(event) => onSelectedChange(message.id, event.target.checked)}
+						className="h-4 w-4 rounded border-neutral-300"
+						aria-label="Select message"
+					/>
+					<button type="button" className="contents text-left" onClick={() => openDraftComposer(message.id)}>
+						{desktopContent}
+					</button>
+				</div>
+				{/* Mobile */}
+				<div className={mobileClassName}>
+					<Checkbox
+						checked={selected}
+						onChange={(event) => onSelectedChange(message.id, event.target.checked)}
+						className="mt-1 h-4 w-4 shrink-0 rounded border-neutral-300"
+						aria-label="Select message"
+					/>
+					<button type="button" className="contents text-left min-w-0 flex-1" onClick={() => openDraftComposer(message.id)}>
+						{mobileContent}
+					</button>
+				</div>
+			</>
+		);
+	}
+
+	return (
+		<>
+			{/* Desktop */}
+			<div
+				className={desktopClassName}
+				draggable={draggable}
+				onDragStart={(event) => {
+					if (!draggable) return;
+					setMessageDragData(event.dataTransfer, { messageIds: dragMessageIds });
+				}}
+			>
+				<MessageNavigationProgress progress={navigation.progress} />
 				<Checkbox
 					checked={selected}
 					onChange={(event) => onSelectedChange(message.id, event.target.checked)}
 					className="h-4 w-4 rounded border-neutral-300"
 					aria-label="Select message"
 				/>
-				<button type="button" className="contents text-left" onClick={() => openDraftComposer(message.id)}>
-					{content}
-				</button>
-			</div>
-		);
-	}
-
-	return (
-		<div
-			className={className}
-			draggable={draggable}
-			onDragStart={(event) => {
-				if (!draggable) return;
-				setMessageDragData(event.dataTransfer, { messageIds: dragMessageIds });
-			}}
-		>
-			<MessageNavigationProgress progress={navigation.progress} />
-			<Checkbox
-				checked={selected}
-				onChange={(event) => onSelectedChange(message.id, event.target.checked)}
-				className="h-4 w-4 rounded border-neutral-300"
-				aria-label="Select message"
-			/>
-			<Link href={href} onClick={onMessageNavigate} className="contents">
-				{content}
-			</Link>
-			{(config.folder === "inbox" || config.folder === "snoozed") && message.direction === "inbound" && (
-				<MessageListRowActions
-					message={rowMessage}
-					onAction={async (action) => {
-						const previousRead = read;
-						const unreadDelta = action === "read" ? -1 : action === "unread" ? 1 : 0;
-						if (action === "read") setRead(true);
-						if (action === "unread") setRead(false);
-						if (unreadDelta) dispatchMessageCountsDelta({ inboxUnreadDelta: unreadDelta });
-						try {
-							await onMessageAction(message.id, action);
-						} catch (error) {
-							if (action === "read" || action === "unread") {
-								setRead(previousRead);
-								if (unreadDelta) dispatchMessageCountsDelta({ inboxUnreadDelta: -unreadDelta });
+				<Link href={href} onClick={onMessageNavigate} className="contents">
+					{desktopContent}
+				</Link>
+				{(config.folder === "inbox" || config.folder === "snoozed") && message.direction === "inbound" && (
+					<MessageListRowActions
+						message={rowMessage}
+						onAction={async (action) => {
+							const previousRead = read;
+							const unreadDelta = action === "read" ? -1 : action === "unread" ? 1 : 0;
+							if (action === "read") setRead(true);
+							if (action === "unread") setRead(false);
+							if (unreadDelta) dispatchMessageCountsDelta({ inboxUnreadDelta: unreadDelta });
+							try {
+								await onMessageAction(message.id, action);
+							} catch (error) {
+								if (action === "read" || action === "unread") {
+									setRead(previousRead);
+									if (unreadDelta) dispatchMessageCountsDelta({ inboxUnreadDelta: -unreadDelta });
+								}
+								throw error;
 							}
-							throw error;
-						}
-					}}
+						}}
+					/>
+				)}
+			</div>
+
+			{/* Mobile */}
+			<div className={mobileClassName}>
+				<MessageNavigationProgress progress={navigation.progress} />
+				<Checkbox
+					checked={selected}
+					onChange={(event) => onSelectedChange(message.id, event.target.checked)}
+					className="mt-1 h-4 w-4 shrink-0 rounded border-neutral-300"
+					aria-label="Select message"
 				/>
-			)}
-		</div>
+				<Link href={href} onClick={onMessageNavigate} className="contents min-w-0 flex-1">
+					{mobileContent}
+				</Link>
+			</div>
+		</>
 	);
 }
 
@@ -369,7 +449,7 @@ export function MessageFolderPage({
 
 	return (
 		<div className="flex h-full min-h-0 flex-col">
-			<div className={`flex h-14 shrink-0 items-center justify-between border-b border-neutral-200 ${compact ? "px-4" : "px-6"}`}>
+			<div className={`flex h-14 shrink-0 items-center justify-between border-b border-neutral-200 ${compact ? "px-3" : "px-3 md:px-6"}`}>
 				<div className="flex items-center gap-3 w-full">
 					<Tooltip label="Select all visible messages">
 						<Checkbox
@@ -448,7 +528,7 @@ export function MessageFolderPage({
 				)}
 			</div>
 
-			<div className="min-h-0 flex-1 divide-y divide-neutral-100 overflow-y-auto overscroll-contain scrollbar-gutter-stable">
+			<div className="min-h-0 flex-1 divide-y divide-neutral-100 overflow-y-auto overscroll-contain scrollbar-gutter-stable pb-24 md:pb-6 mobile-scroll">
 				{messages.map((message) => (
 					<MessageListRow
 						key={message.id}

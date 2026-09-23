@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createJmapApiKey } from "./utils";
+import { PwaInstallButton } from "@/components/pwa/install-prompt";
+import { Smartphone } from "lucide-react";
 
 /**
  * Settings > Account card for connecting an external mail app over JMAP.
@@ -38,9 +40,24 @@ export function EmailClientsSettings() {
 	}
 
 	return (
-		<div className="space-y-4">
+		<div className="space-y-5">
+			<div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-2xl border border-blue-100 bg-blue-50/60 p-4">
+				<div className="flex items-start gap-3">
+					<div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white shadow-xs">
+						<Smartphone className="h-5 w-5" />
+					</div>
+					<div>
+						<h4 className="text-sm font-semibold text-neutral-900">Install as Mobile Web App (PWA)</h4>
+						<p className="text-xs text-neutral-600 mt-0.5">
+							Install Mailflare directly to your phone or desktop home screen for a full-screen, native email experience.
+						</p>
+					</div>
+				</div>
+				<PwaInstallButton className="bg-blue-600 text-white hover:bg-blue-700 shadow-xs shrink-0" />
+			</div>
+
 			<p className="text-sm text-neutral-500">
-				Apps that speak JMAP (Mailtemi, Twake Mail, aerc, and others) can read and send your mail. Point the app at this server and sign in with your email address and an API key as the password.
+				Or connect third-party mail apps that speak JMAP (Mailtemi, Twake Mail, aerc, and others). Point the app at this server and sign in with your email address and an API key as the password.
 			</p>
 			{key ? (
 				<div className="space-y-3 rounded-2xl bg-neutral-50 p-4">

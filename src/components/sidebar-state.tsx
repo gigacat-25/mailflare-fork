@@ -1,13 +1,28 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import type { SidebarProviderProps, SidebarState } from "./sidebar-state-types";
 
-const SidebarContext = createContext<SidebarState>({ minimal: false, toggle: () => undefined });
+const SidebarContext = createContext<SidebarState>({
+	minimal: false,
+	toggle: () => undefined,
+	mobileOpen: false,
+	setMobileOpen: () => undefined,
+	toggleMobile: () => undefined,
+});
 
 export function SidebarProvider({ children, expandedWidth = 240 }: SidebarProviderProps) {
 	const [minimal, setMinimal] = useState(false);
+	const [mobileOpen, setMobileOpen] = useState(false);
 	const [storageKey, setStorageKey] = useState<string | null>(null);
+	const pathname = usePathname();
+
+	const [prevPathname, setPrevPathname] = useState(pathname);
+	if (prevPathname !== pathname) {
+		setPrevPathname(pathname);
+		setMobileOpen(false);
+	}
 
 	useEffect(() => {
 		// The sidebar preference is cosmetic, so every failure here degrades to the default.
@@ -40,8 +55,12 @@ export function SidebarProvider({ children, expandedWidth = 240 }: SidebarProvid
 		});
 	}
 
+	function toggleMobile() {
+		setMobileOpen((prev) => !prev);
+	}
+
 	return (
-		<SidebarContext.Provider value={{ minimal, toggle }}>
+		<SidebarContext.Provider value={{ minimal, toggle, mobileOpen, setMobileOpen, toggleMobile }}>
 			<div className="h-full" style={{ "--sidebar-width": `${minimal ? 72 : expandedWidth}px` } as React.CSSProperties}>
 				{children}
 			</div>
@@ -52,3 +71,4 @@ export function SidebarProvider({ children, expandedWidth = 240 }: SidebarProvid
 export function useSidebar() {
 	return useContext(SidebarContext);
 }
+

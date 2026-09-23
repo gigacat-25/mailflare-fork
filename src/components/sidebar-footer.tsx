@@ -5,6 +5,7 @@ import { useBranding } from "./branding-provider";
 import { useSidebar } from "./sidebar-state";
 import { useShortcuts } from "./shortcuts";
 import { Keyboard } from "lucide-react";
+import { PwaInstallButton } from "@/components/pwa/install-prompt";
 
 export function SidebarFooter() {
 	const { minimal } = useSidebar();
@@ -14,6 +15,7 @@ export function SidebarFooter() {
 
   return (
     <div className="px-3 pt-3 flex flex-col gap-2">
+      <PwaInstallButton className="w-full px-2.5 py-1.5 text-xs text-neutral-500 hover:text-neutral-800 hover:bg-neutral-200/60 rounded-lg transition-colors justify-start" />
       {shortcutsEnabled && !shortcutsPreferenceLoading && (
         <button
           type="button"

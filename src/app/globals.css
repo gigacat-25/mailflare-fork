@@ -132,3 +132,29 @@ pre {
 .email-body p {
 	margin: 0 0 0.5rem;
 }
+
+/* Mobile Safe Area and PWA Standalone utilities */
+.pt-safe {
+	padding-top: max(env(safe-area-inset-top, 0px), 0px);
+}
+.pb-safe {
+	padding-bottom: max(env(safe-area-inset-bottom, 0px), 0px);
+}
+.pl-safe {
+	padding-left: max(env(safe-area-inset-left, 0px), 0px);
+}
+.pr-safe {
+	padding-right: max(env(safe-area-inset-right, 0px), 0px);
+}
+
+/* Smooth mobile scrolling */
+.mobile-scroll {
+	-webkit-overflow-scrolling: touch;
+	overscroll-behavior-y: contain;
+}
+
+/* Prevent double-tap zoom delay on mobile buttons */
+button, a, input, select, textarea {
+	touch-action: manipulation;
+}
+

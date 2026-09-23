@@ -366,7 +366,7 @@ export function ComposeForm({
 
 	const frameClass =
 		mode === "popup"
-			? "fixed bottom-4 right-4 z-40 flex h-[min(520px,calc(100vh-88px))] w-[min(560px,calc(100vw-32px))] flex-col overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-2xl"
+			? "fixed inset-0 z-50 flex h-full w-full flex-col overflow-hidden bg-white pb-safe md:inset-auto md:bottom-4 md:right-4 md:z-40 md:h-[min(560px,calc(100vh-88px))] md:w-[min(580px,calc(100vw-32px))] md:rounded-xl md:border md:border-neutral-200 md:shadow-2xl"
 			: "flex h-full min-h-[720px] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm";
 
 	return (
@@ -382,7 +382,7 @@ export function ComposeForm({
 				</div>
 			)}
 			<form onSubmit={onSubmit} className={frameClass}>
-				<div className="flex h-9 items-center justify-between bg-neutral-800 px-4 text-sm font-medium text-white">
+				<div className="flex h-12 shrink-0 items-center justify-between bg-neutral-800 px-4 pt-safe text-sm font-medium text-white md:h-9 md:pt-0">
 					<span className="flex items-center gap-2">
 						{threading?.inReplyTo && <Reply className="h-3.5 w-3.5 text-neutral-300" />}
 						{!threading?.inReplyTo && /^fwd?:/i.test(subject) && <Forward className="h-3.5 w-3.5 text-neutral-300" />}
