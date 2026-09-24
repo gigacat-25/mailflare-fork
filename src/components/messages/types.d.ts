@@ -19,6 +19,7 @@ export type MessageListRowProps = {
 	message: Message;
 	config: MessageFolderConfig;
 	selected: boolean;
+	hasAnySelected?: boolean;
 	active?: boolean;
 	compact?: boolean;
 	currentAccountName?: string;

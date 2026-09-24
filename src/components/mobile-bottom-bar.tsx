@@ -7,20 +7,27 @@ import { useCompose } from "@/components/compose/compose-context";
 import { useSelectedMailbox } from "@/components/mailbox-provider";
 import { useMessageCounts } from "@/hooks/use-message-counts";
 import { getFolderNavCount } from "@/components/dashboard-nav-utils";
+import { isMessageDetailRoute } from "@/lib/messages/route-utils";
 
 export function MobileBottomBar() {
 	const pathname = usePathname();
+	const isReadingMessage = isMessageDetailRoute(pathname);
+
 	const { openNewComposer } = useCompose();
 	const { selectedMailbox, isLoading } = useSelectedMailbox();
 	const { counts } = useMessageCounts(selectedMailbox?.id, !isLoading);
 	const inboxUnread = getFolderNavCount("inbox", counts.folders);
+
+	// When reading an email on mobile, hide the bottom navigation bar and the Compose FAB
+	// so the email gets 100% full-screen reading real estate without blocked text.
+	if (isReadingMessage) return null;
 
 	const tabs = [
 		{
 			href: "/inbox",
 			label: "Inbox",
 			icon: Inbox,
-			active: pathname === "/inbox" || pathname.startsWith("/inbox/"),
+			active: pathname === "/inbox",
 			badge: inboxUnread,
 		},
 		{

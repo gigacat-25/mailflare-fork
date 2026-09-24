@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Mail, X } from "lucide-react";
 import { getEmailDisplayName } from "@/lib/email/address";
+import { cleanEmailSubject } from "@/lib/email/parse";
 import type { NewMessagePopupProps } from "./new-message-popup-types";
 
 export function NewMessagePopup({
@@ -24,7 +25,7 @@ export function NewMessagePopup({
 						New email
 					</p>
 					<p className="mt-0.5 truncate text-sm text-neutral-800">
-						{notification.subject || "(no subject)"}
+						{cleanEmailSubject(notification.subject)}
 					</p>
 					<p className="mt-1 truncate text-xs text-neutral-500">
 						From {notification.fromName ?? getEmailDisplayName(notification.from)}

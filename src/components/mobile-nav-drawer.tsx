@@ -1,13 +1,19 @@
 "use client";
 
 import { useEffect, type ReactNode } from "react";
+import { usePathname } from "next/navigation";
 import { X } from "lucide-react";
 import { useSidebar } from "@/components/sidebar-state";
 import { useBranding } from "@/components/branding-provider";
 
 export function MobileNavDrawer({ children }: { children: ReactNode }) {
+	const pathname = usePathname();
 	const { mobileOpen, setMobileOpen } = useSidebar();
 	const branding = useBranding();
+
+	useEffect(() => {
+		setMobileOpen(false);
+	}, [pathname, setMobileOpen]);
 
 	useEffect(() => {
 		if (mobileOpen) {

@@ -133,6 +133,27 @@ pre {
 	margin: 0 0 0.5rem;
 }
 
+/* Responsive email body constraints for mobile readability */
+.email-body {
+	max-width: 100% !important;
+	overflow-x: auto;
+	-webkit-overflow-scrolling: touch;
+	word-break: break-word;
+	overflow-wrap: break-word;
+}
+.email-body img {
+	max-width: 100% !important;
+	height: auto !important;
+}
+.email-body table {
+	max-width: 100% !important;
+}
+.email-body pre,
+.email-body code {
+	white-space: pre-wrap !important;
+	word-break: break-word !important;
+}
+
 /* Mobile Safe Area and PWA Standalone utilities */
 .pt-safe {
 	padding-top: max(env(safe-area-inset-top, 0px), 0px);

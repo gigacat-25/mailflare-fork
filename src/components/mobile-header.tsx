@@ -1,12 +1,19 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { Menu } from "lucide-react";
 import { useSidebar } from "@/components/sidebar-state";
 import { MailSearchInput } from "@/components/mail-search/mail-search-input";
 import { MailboxSelector } from "@/components/mailbox-selector";
+import { isMessageDetailRoute } from "@/lib/messages/route-utils";
 
 export function MobileHeader({ showSearch = true }: { showSearch?: boolean }) {
+	const pathname = usePathname();
 	const { toggleMobile } = useSidebar();
+
+	// When viewing an individual email on mobile, hide the search bar/header
+	// so the message detail toolbar (with Back button and actions) is the only header.
+	if (isMessageDetailRoute(pathname)) return null;
 
 	return (
 		<header className="flex h-14 w-full shrink-0 items-center gap-2 border-b border-neutral-200/80 bg-[#f6f8fc] px-3 pt-safe md:hidden">

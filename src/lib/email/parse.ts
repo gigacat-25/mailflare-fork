@@ -23,11 +23,48 @@ export type ParsedEmail = {
 	attachments: AttachmentContent[];
 };
 
+export function cleanEmailSubject(subject?: string | null): string {
+	if (!subject) return "(no subject)";
+	const cleaned = subject
+		.replace(/<[^>]*>/g, " ")
+		.replace(/&quot;/gi, '"')
+		.replace(/&#39;|&apos;/gi, "'")
+		.replace(/&amp;/gi, "&")
+		.replace(/&lt;/gi, "<")
+		.replace(/&gt;/gi, ">")
+		.replace(/&nbsp;/gi, " ")
+		.replace(/&#(\d+);/g, (_, dec) => {
+			const num = Number(dec);
+			return Number.isFinite(num) ? String.fromCharCode(num) : "";
+		})
+		.replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => {
+			const num = parseInt(hex, 16);
+			return Number.isFinite(num) ? String.fromCharCode(num) : "";
+		})
+		.replace(/\s+/g, " ")
+		.trim();
+	return cleaned || "(no subject)";
+}
+
+export function cleanEmailPreview(preview?: string | null): string {
+	if (!preview) return "";
+	return preview
+		.replace(/<[^>]*>/g, " ")
+		.replace(/&quot;/gi, '"')
+		.replace(/&#39;|&apos;/gi, "'")
+		.replace(/&amp;/gi, "&")
+		.replace(/&lt;/gi, "<")
+		.replace(/&gt;/gi, ">")
+		.replace(/&nbsp;/gi, " ")
+		.replace(/\s+/g, " ")
+		.trim();
+}
+
 export async function parseRawMime(raw: ArrayBuffer): Promise<ParsedEmail> {
 	const email = await PostalMime.parse(raw);
 	const date = email.date ? new Date(email.date) : null;
 	return {
-		subject: email.subject ?? null,
+		subject: email.subject ? cleanEmailSubject(email.subject) : null,
 		text: email.text ?? null,
 		html: email.html ?? null,
 		messageId: email.messageId ?? null,
@@ -50,5 +87,6 @@ export async function parseRawMime(raw: ArrayBuffer): Promise<ParsedEmail> {
 
 export function buildSnippet(text: string | null, html: string | null, max = 200): string {
 	const source = getLatestEmailContent(text?.trim() || htmlToReadableText(html));
-	return source.replace(/\s+/g, " ").trim().slice(0, max);
+	return cleanEmailPreview(source.replace(/\s+/g, " ").trim().slice(0, max));
 }
+

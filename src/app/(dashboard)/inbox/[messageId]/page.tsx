@@ -22,6 +22,7 @@ import { useMessageThread } from "@/components/messages/use-message-thread";
 import { useLatestMessagesFirst } from "@/components/messages/use-latest-messages-first";
 import { getMessageBackHref } from "@/components/message-actions/utils";
 import { getEmailAddress, getEmailDisplayName, splitEmailAddressList } from "@/lib/email/address";
+import { cleanEmailSubject } from "@/lib/email/parse";
 import type { MessageAttachment, MessageDetailResponse } from "./types";
 import {
   fetchMessageDetail,
@@ -134,19 +135,22 @@ export default function MessageDetailPage() {
   const cloudAttachmentResult = extractCloudAttachments(
     bodyDisplay.latestContent,
   );
+  const backHref = getMessageBackHref(message.direction, message.status);
+
   return (
-    <div className="h-full overflow-y-auto overscroll-contain scrollbar-gutter-stable">
+    <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain scrollbar-gutter-stable mobile-scroll pb-safe">
       {!message.read && <MarkAsRead messageId={message.id} />}
-      <div className="flex pt-3 pb-2.75 items-center justify-between px-2 border-b border-neutral-200 sticky top-0 bg-white">
-        <div className="flex-1" />
-        {/* <div className="flex items-center flex-row gap-6">
-					<Link
-						href={getMessageBackHref(message.direction, message.status)}
-						className="rounded-full p-2 text-neutral-600 hover:bg-neutral-100"
-					>
-						<ArrowLeft className="h-5 w-5" />
-					</Link>
-				</div> */}
+      <div className="flex pt-safe pb-2.5 items-center justify-between px-2 sm:px-4 border-b border-neutral-200 sticky top-0 bg-white z-20">
+        <div className="flex items-center gap-2">
+          <Link
+            href={backHref}
+            className="flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-neutral-600 hover:bg-neutral-100 active:bg-neutral-200 transition-colors"
+            aria-label="Back to messages"
+          >
+            <ArrowLeft className="h-5 w-5 shrink-0" />
+            <span className="text-xs font-semibold">Back</span>
+          </Link>
+        </div>
         <MessageActions
           messageId={message.id}
           mailboxId={message.mailboxId}
@@ -155,7 +159,7 @@ export default function MessageDetailPage() {
           status={message.status}
           read={message.read}
           unsubscribeUrl={data.unsubscribeUrl}
-          subject={message.subject}
+          subject={cleanEmailSubject(message.subject)}
           bodyText={body?.textBody}
           ownAddress={ownAddress}
           ownAddresses={ownAddresses}
@@ -164,9 +168,9 @@ export default function MessageDetailPage() {
           bodyHtml={body?.htmlBody}
         />
       </div>
-      <div className="px-6 pb-2 pt-4">
-        <h1 className="text-2xl text-neutral-900">
-          {message.subject ?? "(no subject)"}
+      <div className="px-3.5 sm:px-6 pb-2 pt-4">
+        <h1 className="text-xl sm:text-2xl font-semibold text-neutral-900 break-words">
+          {cleanEmailSubject(message.subject)}
         </h1>
       </div>
       <SpamScoreDetails

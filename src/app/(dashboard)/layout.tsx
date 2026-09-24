@@ -18,11 +18,16 @@ import { MobileHeader } from "@/components/mobile-header";
 import { MobileNavDrawer } from "@/components/mobile-nav-drawer";
 import { MobileBottomBar } from "@/components/mobile-bottom-bar";
 
+import { usePathname } from "next/navigation";
+import { isMessageDetailRoute } from "@/lib/messages/route-utils";
+
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const pathname = usePathname();
+  const isReadingMessage = isMessageDetailRoute(pathname);
   return (
     <AuthGuard>
       <SidebarProvider>
@@ -61,7 +66,11 @@ export default function DashboardLayout({
                     </header>
 
                     {/* Page Content */}
-                    <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-white pb-20 md:pb-0 md:rounded-tl-3xl scrollbar-gutter-stable mobile-scroll">
+                    <main
+                      className={`flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-white md:rounded-tl-3xl ${
+                        !isReadingMessage ? "pb-20 md:pb-0" : "pb-0"
+                      }`}
+                    >
                       {children}
                     </main>
                   </div>

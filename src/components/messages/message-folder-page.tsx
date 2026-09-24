@@ -21,6 +21,7 @@ import { MessageListRowActions } from "./message-list-row-actions";
 import { dispatchMessageCountsDelta, toggleMessageStar } from "./message-list-row-actions-utils";
 import { MessageNavigationProgress, useMessageNavigation } from "./message-navigation";
 import { useConversationView } from "./use-conversation-view";
+import { cleanEmailSubject } from "@/lib/email/parse";
 import type { MessageFolderPageProps, MessageListRowProps } from "./types";
 import {
 	formatMessageListTimestamp,
@@ -41,6 +42,7 @@ function MessageListRow({
 	message,
 	config,
 	selected,
+	hasAnySelected = false,
 	active = false,
 	compact = false,
 	currentAccountName,
@@ -61,6 +63,8 @@ function MessageListRow({
 	const draggable = config.folder === "inbox" && message.direction === "inbound";
 	const party = getMessageParty(rowMessage, config.folder, currentAccountName);
 	const preview = getMessagePreview(rowMessage, config.folder);
+	const displaySubject = cleanEmailSubject(rowMessage.subject);
+	const initial = (party || "U").trim().charAt(0).toUpperCase();
 	const href = `${config.hrefPrefix}/${message.id}`;
 	const navigation = useMessageNavigation(href, rowMessage);
 
@@ -118,7 +122,7 @@ function MessageListRow({
 						className={`mt-1 block truncate text-sm ${unread ? "font-semibold text-neutral-900" : "text-neutral-700"
 							}`}
 					>
-						{message.subject ?? "(no subject)"}
+						{cleanEmailSubject(message.subject)}
 					</span>
 					<span className="mt-0.5 block truncate text-xs leading-5 text-neutral-500">
 						{preview}
@@ -167,7 +171,7 @@ function MessageListRow({
 			</span>
 			<span className="truncate text-neutral-700">
 				<span className={unread ? "font-semibold text-neutral-900" : ""}>
-					{rowMessage.subject ?? "(no subject)"}
+					{displaySubject}
 				</span>
 				<span className="text-neutral-500"> - {getMessagePreview(rowMessage, config.folder)}</span>
 			</span>
@@ -199,7 +203,7 @@ function MessageListRow({
 			</div>
 			<div className="flex items-center gap-1.5">
 				<p className={clsx("truncate text-[13px] leading-tight", unread ? "font-semibold text-neutral-900" : "text-neutral-800")}>
-					{rowMessage.subject ?? "(no subject)"}
+					{displaySubject}
 				</p>
 			</div>
 			<div className="flex items-center justify-between gap-2">
@@ -241,12 +245,27 @@ function MessageListRow({
 				</div>
 				{/* Mobile */}
 				<div className={mobileClassName}>
-					<Checkbox
-						checked={selected}
-						onChange={(event) => onSelectedChange(message.id, event.target.checked)}
-						className="mt-1 h-4 w-4 shrink-0 rounded border-neutral-300"
-						aria-label="Select message"
-					/>
+					{selected || hasAnySelected ? (
+						<Checkbox
+							checked={selected}
+							onChange={(event) => onSelectedChange(message.id, event.target.checked)}
+							className="mt-1 h-5 w-5 shrink-0 rounded border-neutral-300"
+							aria-label="Select message"
+						/>
+					) : (
+						<button
+							type="button"
+							onClick={(event) => {
+								event.preventDefault();
+								event.stopPropagation();
+								onSelectedChange(message.id, true);
+							}}
+							aria-label={`Select message from ${party}`}
+							className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-100/90 text-xs font-semibold text-blue-700 hover:bg-blue-200 transition-colors"
+						>
+							{initial}
+						</button>
+					)}
 					<button type="button" className="contents text-left min-w-0 flex-1" onClick={() => openDraftComposer(message.id)}>
 						{mobileContent}
 					</button>
@@ -302,12 +321,27 @@ function MessageListRow({
 			{/* Mobile */}
 			<div className={mobileClassName}>
 				<MessageNavigationProgress progress={navigation.progress} />
-				<Checkbox
-					checked={selected}
-					onChange={(event) => onSelectedChange(message.id, event.target.checked)}
-					className="mt-1 h-4 w-4 shrink-0 rounded border-neutral-300"
-					aria-label="Select message"
-				/>
+				{selected || hasAnySelected ? (
+					<Checkbox
+						checked={selected}
+						onChange={(event) => onSelectedChange(message.id, event.target.checked)}
+						className="mt-1 h-5 w-5 shrink-0 rounded border-neutral-300"
+						aria-label="Select message"
+					/>
+				) : (
+					<button
+						type="button"
+						onClick={(event) => {
+							event.preventDefault();
+							event.stopPropagation();
+							onSelectedChange(message.id, true);
+						}}
+						aria-label={`Select message from ${party}`}
+						className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-100/90 text-xs font-semibold text-blue-700 hover:bg-blue-200 transition-colors"
+					>
+						{initial}
+					</button>
+				)}
 				<Link href={href} onClick={onMessageNavigate} className="contents min-w-0 flex-1">
 					{mobileContent}
 				</Link>
@@ -535,6 +569,7 @@ export function MessageFolderPage({
 						message={message}
 						config={config}
 						selected={selectedIds.includes(message.id)}
+						hasAnySelected={selectedIds.length > 0}
 						active={message.id === selectedMessageId}
 						compact={compact}
 						currentAccountName={currentAccountName}
