@@ -168,9 +168,12 @@ export function ComposeForm({
 	useEffect(() => {
 		if (loadingDraft) return;
 		const nextSignature = selectedMailbox?.signature ?? "";
-		setHtml((current) => applyMailboxSignatureHtml(current, previousSignature.current, nextSignature));
+		const logoUrl = selectedMailbox?.signatureLogoKey
+			? `/api/mailboxes/${selectedMailbox.id}/signature-logo`
+			: null;
+		setHtml((current) => applyMailboxSignatureHtml(current, previousSignature.current, nextSignature, logoUrl));
 		previousSignature.current = nextSignature;
-	}, [loadingDraft, selectedMailbox?.id, selectedMailbox?.signature]);
+	}, [loadingDraft, selectedMailbox?.id, selectedMailbox?.signature, selectedMailbox?.signatureLogoKey]);
 
 	useEffect(() => {
 		const bodyContent = htmlToPlainText(html).trim();
@@ -271,7 +274,7 @@ export function ComposeForm({
 		setThreading(null);
 		setStoredAttachments([]);
 		setSubject("");
-		setHtml(applyMailboxSignatureHtml("", "", selectedMailbox?.signature));
+		setHtml(applyMailboxSignatureHtml("", "", selectedMailbox?.signature, selectedMailbox?.signatureLogoKey ? `/api/mailboxes/${selectedMailbox.id}/signature-logo` : null));
 		setQuotedHtml(null);
 		setAttachments([]);
 		setScheduledAt(null);
@@ -302,7 +305,7 @@ export function ComposeForm({
 		setThreading(null);
 		setStoredAttachments([]);
 		setSubject("");
-		setHtml(applyMailboxSignatureHtml("", "", selectedMailbox?.signature));
+		setHtml(applyMailboxSignatureHtml("", "", selectedMailbox?.signature, selectedMailbox?.signatureLogoKey ? `/api/mailboxes/${selectedMailbox.id}/signature-logo` : null));
 		setQuotedHtml(null);
 		setAttachments([]);
 		setScheduledAt(null);

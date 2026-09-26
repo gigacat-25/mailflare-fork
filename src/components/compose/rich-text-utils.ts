@@ -46,9 +46,14 @@ export function hasMeaningfulHtml(html: string): boolean {
 	return htmlToPlainText(html).trim().length > 0 || /<img\b/i.test(html);
 }
 
-function signatureBlock(signature: string | null | undefined): string {
+function signatureBlock(signature: string | null | undefined, logoUrl?: string | null): string {
 	const value = signature?.trim() ?? "";
-	return value ? `<div ${SIGNATURE_ATTRIBUTE}="1"><br><br>${textToHtml(value).replace(/^<div>|<\/div>$/g, "")}</div>` : "";
+	const logoHtml = logoUrl
+		? `<img src="${logoUrl}" alt="Company logo" style="max-height:60px;max-width:200px;display:block;margin-bottom:8px;" />`
+		: "";
+	return value || logoHtml
+		? `<div ${SIGNATURE_ATTRIBUTE}="1"><br><br>${logoHtml}${textToHtml(value).replace(/^<div>|<\/div>$/g, "")}</div>`
+		: "";
 }
 
 /** Swap or append the mailbox signature, mirroring the plain-text behaviour. */
@@ -56,9 +61,10 @@ export function applyMailboxSignatureHtml(
 	html: string,
 	previousSignature: string | null | undefined,
 	nextSignature: string | null | undefined,
+	logoUrl?: string | null,
 ): string {
 	const previousBlock = signatureBlock(previousSignature);
-	const nextBlock = signatureBlock(nextSignature);
+	const nextBlock = signatureBlock(nextSignature, logoUrl);
 	if (previousBlock && html.includes(previousBlock)) return html.replace(previousBlock, nextBlock);
 	if (!nextBlock || html.includes(nextBlock)) return html;
 	return `${html}${nextBlock}`;

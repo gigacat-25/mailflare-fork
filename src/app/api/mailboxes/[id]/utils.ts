@@ -14,6 +14,7 @@ export function selectMailboxForUser(db: Db, userId: string, mailboxId: string) 
 		localPart: mailboxes.localPart,
 		displayName: mailboxes.displayName,
 		signature: mailboxes.signature,
+		signatureLogoKey: mailboxes.signatureLogoKey,
 		autoReplyEnabled: mailboxes.autoReplyEnabled,
 		autoReplySubject: mailboxes.autoReplySubject,
 		autoReplyBody: mailboxes.autoReplyBody,

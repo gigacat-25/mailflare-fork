@@ -29,6 +29,7 @@ export type MailboxOption = {
 	hostname: string;
 	displayName: string | null;
 	signature?: string | null;
+	signatureLogoKey?: string | null;
 	autoReplyEnabled?: boolean;
 	autoReplySubject?: string;
 	autoReplyBody?: string;

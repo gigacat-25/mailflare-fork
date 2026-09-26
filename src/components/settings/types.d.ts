@@ -60,6 +60,7 @@ export type MailboxSignatureResponse = {
 		hostname: string;
 		displayName: string | null;
 		signature: string | null;
+		signatureLogoKey?: string | null;
 		hasAvatar?: boolean;
 		isPrimary?: boolean;
 	};

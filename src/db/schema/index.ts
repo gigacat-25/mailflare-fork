@@ -65,6 +65,7 @@ export const mailboxes = sqliteTable(
 		localPart: text("local_part").notNull(),
 		displayName: text("display_name"),
 		signature: text("signature"),
+		signatureLogoKey: text("signature_logo_key"),
 		autoReplyEnabled: integer("auto_reply_enabled", { mode: "boolean" }).notNull().default(false),
 		autoReplySubject: text("auto_reply_subject").notNull().default("Out of office"),
 		autoReplyBody: text("auto_reply_body").notNull().default(""),
