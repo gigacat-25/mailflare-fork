@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { Camera, LoaderCircle, Trash2, Building2 } from "lucide-react";
 import { useSelectedMailbox } from "@/components/mailbox-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { authFetch } from "@/lib/auth/client";
 import { clearMailboxesCache } from "@/components/mailbox-provider-utils";
@@ -25,7 +27,7 @@ function validateLogo(file: File): string | null {
 }
 
 export function MailboxSignatureForm() {
-	const { selectedMailbox, setSelectedMailbox, isLoading } = useSelectedMailbox();
+	const { selectedMailbox, setSelectedMailbox, mailboxes, isLoading } = useSelectedMailbox();
 	const [signature, setSignature] = useState("");
 	const [savedSignature, setSavedSignature] = useState("");
 	const [status, setStatus] = useState<string | null>(null);
@@ -38,6 +40,13 @@ export function MailboxSignatureForm() {
 	const [logoUploading, setLogoUploading] = useState(false);
 	const [logoDeleting, setLogoDeleting] = useState(false);
 	const logoInputRef = useRef<HTMLInputElement>(null);
+
+	// Auto-select first mailbox if none is selected
+	useEffect(() => {
+		if (!selectedMailbox && mailboxes.length > 0) {
+			setSelectedMailbox(mailboxes[0]);
+		}
+	}, [mailboxes, selectedMailbox, setSelectedMailbox]);
 
 	useEffect(() => {
 		const nextSignature = selectedMailbox?.signature ?? "";
@@ -132,13 +141,71 @@ export function MailboxSignatureForm() {
 	}
 
 	if (isLoading) return <p className="text-sm text-neutral-500">Loading inbox…</p>;
-	if (!selectedMailbox) return <p className="text-sm text-neutral-500">Select an inbox to configure its signature.</p>;
+
+	if (mailboxes.length === 0) {
+		return (
+			<p className="text-sm text-neutral-500">
+				No mailboxes found. Please create or assign a mailbox first in{" "}
+				<Link href="/settings/mailboxes" className="text-blue-600 underline hover:text-blue-700">
+					Settings → Mailboxes
+				</Link>
+				.
+			</p>
+		);
+	}
+
+	if (!selectedMailbox) {
+		return (
+			<div className="space-y-3">
+				<p className="text-sm text-neutral-500">Select an inbox to configure its signature:</p>
+				<div className="flex flex-wrap gap-2">
+					{mailboxes.map((mb) => (
+						<Button
+							key={mb.id}
+							type="button"
+							variant="outline"
+							size="sm"
+							onClick={() => setSelectedMailbox(mb)}
+						>
+							{mb.displayName ? `${mb.displayName} (${mb.localPart}@${mb.hostname})` : `${mb.localPart}@${mb.hostname}`}
+						</Button>
+					))}
+				</div>
+			</div>
+		);
+	}
 
 	const address = `${selectedMailbox.localPart}@${selectedMailbox.hostname}`;
 	const canManage = selectedMailbox.permission === "full_access";
 
 	return (
 		<form onSubmit={onSubmit} className="space-y-6">
+			{mailboxes.length > 1 && (
+				<div className="space-y-2">
+					<Label htmlFor="signature-mailbox-select" className="text-sm text-neutral-600">
+						Configuring signature for
+					</Label>
+					<div className="max-w-md">
+						<Select
+							id="signature-mailbox-select"
+							value={selectedMailbox.id}
+							onChange={(e) => {
+								const found = mailboxes.find((m) => m.id === e.target.value);
+								if (found) setSelectedMailbox(found);
+							}}
+						>
+							{mailboxes.map((mb) => {
+								const addr = `${mb.localPart}@${mb.hostname}`;
+								return (
+									<option key={mb.id} value={mb.id}>
+										{mb.displayName ? `${mb.displayName} (${addr})` : addr}
+									</option>
+								);
+							})}
+						</Select>
+					</div>
+				</div>
+			)}
 			{/* Company logo section */}
 			<div className="space-y-3">
 				<Label>Company logo</Label>
