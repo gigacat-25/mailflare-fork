@@ -13,7 +13,7 @@ export function MobileBottomBar() {
 	const pathname = usePathname();
 	const isReadingMessage = isMessageDetailRoute(pathname);
 
-	const { openNewComposer } = useCompose();
+	const { openComposer } = useCompose();
 	const { selectedMailbox, isLoading } = useSelectedMailbox();
 	const { counts } = useMessageCounts(selectedMailbox?.id, !isLoading);
 	const inboxUnread = getFolderNavCount("inbox", counts.folders);
@@ -56,7 +56,7 @@ export function MobileBottomBar() {
 			<aside aria-label="Compose actions" className="fixed bottom-20 right-4 z-40 md:hidden">
 				<button
 					type="button"
-					onClick={() => openNewComposer()}
+					onClick={() => openComposer()}
 					className="flex h-14 items-center gap-2.5 rounded-2xl bg-blue-600 px-5 text-white shadow-lg shadow-blue-500/30 active:scale-95 transition-all hover:bg-blue-700"
 					aria-label="Compose new email"
 				>
